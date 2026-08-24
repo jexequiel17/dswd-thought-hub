@@ -21,7 +21,7 @@ export default function Header({ onOpenGuidelines }) {
           </motion.div>
           <div>
             <h1 className="text-base sm:text-2xl font-black text-black tracking-tight leading-tight">
-              Psychological First Aid Training
+              Trauma Informed - Psychological First Aid Training
             </h1>
             <p className="text-[11px] sm:text-xs font-semibold text-gray-600">
               Interactive Thought Hub & Participant Safe Space

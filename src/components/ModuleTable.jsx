@@ -1,6 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { User, Pencil, Check, X, ChevronDown, Trash2, Eye, EyeOff, MessageSquare, HelpCircle, AlertCircle, Heart, BookmarkCheck, Download } from "lucide-react";
+import { 
+  User, 
+  Pencil, 
+  Check, 
+  X, 
+  ChevronDown, 
+  Trash2, 
+  Eye, 
+  EyeOff, 
+  MessageSquare, 
+  HelpCircle, 
+  AlertCircle, 
+  Heart, 
+  BookmarkCheck, 
+  Download 
+} from "lucide-react";
 import AnswerModal from "./AnswerModal";
 
 const MODULE_OPTIONS = [
@@ -22,6 +37,7 @@ export default function ModuleTable({
   entries = [], 
   activeModule = "Module 1", 
   moduleTitle = "", 
+  trainerId = "",
   isModerator = false, 
   onModuleChange,
   onToggleHideEntry,
@@ -55,30 +71,62 @@ export default function ModuleTable({
     localStorage.setItem("myMarkedEntryIds", JSON.stringify(updated));
   };
 
-  const handleExportCSV = () => {
+  // Pure JavaScript Native Spreadsheet Exporter (No XLSX library needed)
+  const handleExportNativeSpreadsheet = () => {
     if (!entries || entries.length === 0) return;
-    const headers = ["ID", "Name", "Type", "Module", "Content", "Response", "Status"];
-    const rows = entries.map((item, index) => {
+
+    const escapeXml = (str = "") =>
+      String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+
+    const headers = ["Name", "Type", "Module", "Question / Content", "Response", "Status"];
+
+    const rowsXml = entries.map((item) => {
       const isHidden = item.hidden || item.status === "HIDDEN";
-      const itemId = item.id || item.rowId || `${item.name}-${index}`;
       const response = item.answer || item.response || "";
-      const type = item.type || "question";
-      return [
-        `"${itemId}"`,
-        `"${(item.name || "Anonymous").replace(/"/g, '""')}"`,
-        `"${type}"`,
-        `"${activeModule}"`,
-        `"${(item.content || "").replace(/"/g, '""')}"`,
-        `"${response.replace(/"/g, '""')}"`,
-        `"${isHidden ? "Hidden" : "Visible"}"`
-      ].join(",");
-    });
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const rawType = item.type || "question";
+      const formattedType = rawType.charAt(0).toUpperCase() + rawType.slice(1).toLowerCase();
+      const contentText = item.question || item.content || item.message || item.text || "";
+
+      return `
+        <Row>
+          <Cell><Data ss:Type="String">${escapeXml(item.name || "Anonymous")}</Data></Cell>
+          <Cell><Data ss:Type="String">${escapeXml(formattedType)}</Data></Cell>
+          <Cell><Data ss:Type="String">${escapeXml(activeModule)}</Data></Cell>
+          <Cell><Data ss:Type="String">${escapeXml(contentText)}</Data></Cell>
+          <Cell><Data ss:Type="String">${escapeXml(response)}</Data></Cell>
+          <Cell><Data ss:Type="String">${escapeXml(isHidden ? "Hidden" : "Visible")}</Data></Cell>
+        </Row>`;
+    }).join("");
+
+    const headerXml = `
+        <Row>
+          ${headers.map(h => `<Cell><Data ss:Type="String">${escapeXml(h)}</Data></Cell>`).join("")}
+        </Row>`;
+
+    const xmlTemplate = `<?xml version="1.0" encoding="UTF-8"?>
+      <?mso-application progid="Excel.Sheet"?>
+      <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+        xmlns:o="urn:schemas-microsoft-com:office:office"
+        xmlns:x="urn:schemas-microsoft-com:office:excel"
+        xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+        <Worksheet ss:Name="${escapeXml(activeModule)}">
+          <Table>
+            ${headerXml}
+            ${rowsXml}
+          </Table>
+        </Worksheet>
+      </Workbook>`;
+
+    const blob = new Blob([xmlTemplate], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${activeModule.toLowerCase().replace(/\s+/g, "_")}_entries.csv`);
+    link.setAttribute("download", `${activeModule.toLowerCase().replace(/\s+/g, "_")}_entries.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -112,9 +160,15 @@ export default function ModuleTable({
 
   const handleSaveAnswerSubmit = async () => {
     if (onSaveAnswer && activeAnswerItem) {
-      await onSaveAnswer(activeAnswerItem, answerText);
+      await onSaveAnswer(activeAnswerItem, answerText, trainerId || activeAnswerItem.trainerId, activeModule);
     }
     handleCloseAnswerModal();
+  };
+
+  const handleToggleHide = (item, shouldHide) => {
+    if (onToggleHideEntry) {
+      onToggleHideEntry(item, shouldHide, trainerId || item.trainerId, activeModule);
+    }
   };
 
   const currentOption = MODULE_OPTIONS.find((m) => m.tag === selectedModule) || MODULE_OPTIONS[0];
@@ -122,7 +176,7 @@ export default function ModuleTable({
 
   return (
     <div className="flex flex-col h-full max-h-full space-y-2 min-h-0">
-      <div className="bg-[#417dc1] border-2 border-black p-2.5 sm:px-4 sm:py-2.5 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,0.9)] flex flex-col justify-between gap-2.5 shrink-0 relative z-30">
+      <div className="bg-[#E38B80] border-2 border-black p-2.5 sm:px-4 sm:py-2.5 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,0.9)] flex flex-col justify-between gap-2.5 shrink-0 relative z-30">
         {isEditingModule ? (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full min-w-0">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -163,7 +217,7 @@ export default function ModuleTable({
                 <button onClick={() => { setSelectedModule(activeModule); setIsEditingModule(true); }} className="p-1.5 bg-white hover:bg-gray-100 border border-black/40 rounded cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)] transition-all active:translate-x-[1px] active:translate-y-[1px]" title="Change module"><Pencil className="w-3.5 h-3.5 text-black" /></button>
               )}
               {isModerator && (
-                <button onClick={handleExportCSV} className="p-1.5 bg-white hover:bg-gray-100 border border-black/40 rounded cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)] transition-all active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-1 text-xs font-bold text-black px-2" title="Export CSV">
+                <button onClick={handleExportNativeSpreadsheet} className="p-1.5 bg-white hover:bg-gray-100 border border-black/40 rounded cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)] transition-all active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-1 text-xs font-bold text-black px-2" title="Export Spreadsheet">
                   <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Export</span>
                 </button>
               )}
@@ -175,9 +229,9 @@ export default function ModuleTable({
       <div className="border-2 border-black rounded-2xl overflow-hidden bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,0.9)] flex flex-col flex-1 min-h-0 relative z-10">
         <div className="shrink-0 border-b-2 border-black z-20 bg-white">
           <div className="grid grid-cols-[25%_35%_40%] w-full uppercase text-sm font-extrabold text-white">
-            <div className="p-2.5 text-center bg-[#9C574F] border-r-2 border-black flex items-center justify-center">Name</div>
-            <div className="p-2.5 text-center bg-[#D87A6E] text-black border-r-2 border-black flex items-center justify-center">Question / Reflection</div>
-            <div className="p-2.5 text-center bg-[#E39C91] text-black flex items-center justify-center">Response</div>
+            <div className="p-2.5 text-center bg-[#417dc1] border-r-2 border-black flex items-center justify-center">Name</div>
+            <div className="p-2.5 text-center bg-[#6DA0DC] text-black border-r-2 border-black flex items-center justify-center">Question / Reflection</div>
+            <div className="p-2.5 text-center bg-[#A0C4EC] text-black flex items-center justify-center">Response</div>
           </div>
         </div>
 
@@ -188,27 +242,42 @@ export default function ModuleTable({
               <AnimatePresence>
                 {displayedEntries.length > 0 ? displayedEntries.map((item, index) => {
                   const isHidden = item.hidden || item.status === "HIDDEN";
-                  const itemId = item.id || item.rowId || `${item.name}-${index}`;
+                  const itemId = item.id || item.rowId || item.docId || `${item.name}-${index}`;
                   const currentResponse = item.answer || item.response || "";
                   const typeInfo = TYPE_CONFIG[(item.type || "question").toLowerCase()] || TYPE_CONFIG.question;
                   const TypeIcon = typeInfo.icon;
                   const isMyEntry = !isModerator && myMarkedIds.includes(itemId);
+                  const displayContent = item.question || item.content || item.message || item.text || "";
 
                   return (
                     <tr key={itemId} className={`text-sm sm:text-base text-black transition-colors ${isHidden ? "bg-gray-200/80 text-gray-400" : isMyEntry ? "bg-amber-100/90 border-l-4 border-l-amber-600 font-medium" : index % 2 === 0 ? "bg-[#FFFDF9]" : "bg-[#FDF6ED]"}`}>
                       <td className="p-3 font-bold border-r-2 border-black/10 align-middle">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0"><div className="w-6 h-6 rounded-full bg-[#E38B80]/20 border border-black/30 flex items-center justify-center shrink-0"><User className="w-3.5 h-3.5 text-[#B35A53]" /></div><span className={`truncate ${isHidden ? "line-through opacity-60" : ""}`}>{item.name || "Anonymous"}</span></div>
-                          {!isModerator && <button type="button" onClick={() => toggleMyEntryPin(itemId)} className={`p-1 rounded-lg border-2 border-black text-xs font-extrabold shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${isMyEntry ? "bg-amber-500" : "bg-white"}`}><BookmarkCheck className="w-3.5 h-3.5" /></button>}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-6 h-6 rounded-full bg-[#E38B80]/20 border border-black/30 flex items-center justify-center shrink-0">
+                              <User className="w-3.5 h-3.5 text-[#B35A53]" />
+                            </div>
+                            <span className={`truncate ${isHidden ? "line-through opacity-60" : ""}`}>{item.name || "Anonymous"}</span>
+                          </div>
+                          {!isModerator && (
+                            <button type="button" onClick={() => toggleMyEntryPin(itemId)} className={`p-1 rounded-lg border-2 border-black text-xs font-extrabold shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${isMyEntry ? "bg-amber-500 text-white" : "bg-white text-black"}`}>
+                              <BookmarkCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="p-3 border-r-2 border-black/10 align-middle">
                         <div className="space-y-1.5">
-                          <div className="flex items-start gap-2 min-w-0"><span className={`inline-flex items-center justify-center w-5 h-5 rounded-md border border-black/60 shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,0.8)] mt-0.5 ${typeInfo.bg}`}><TypeIcon className="w-3 h-3 stroke-[2.5]" /></span><p className={`font-medium leading-snug flex-1 break-words ${isHidden ? "line-through text-gray-500 opacity-60" : "text-gray-900"}`}>{item.content}</p></div>
+                          <div className="flex items-start gap-2 min-w-0">
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-md border border-black/60 shrink-0 shadow-[1px_1px_0px_0px_rgba(0,0,0,0.8)] mt-0.5 ${typeInfo.bg}`}>
+                              <TypeIcon className="w-3 h-3 stroke-[2.5]" />
+                            </span>
+                            <p className={`font-medium leading-snug flex-1 break-words ${isHidden ? "line-through text-gray-500 opacity-60" : "text-gray-900"}`}>{displayContent}</p>
+                          </div>
                           {isModerator && (
                             <div className="pt-1 flex items-center gap-2 pl-7 flex-wrap">
                               {isHidden && <span className="inline-flex items-center gap-1 text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-400 px-2 py-0.5 rounded-md"><EyeOff className="w-3 h-3" /> Hidden</span>}
-                              <button type="button" onClick={() => onToggleHideEntry(item, !isHidden)} className={`text-[11px] font-black px-2 py-0.5 rounded-lg border border-black flex items-center gap-1 ${isHidden ? "bg-emerald-100 text-emerald-900" : "bg-rose-100 text-rose-900"}`}>
+                              <button type="button" onClick={() => handleToggleHide(item, !isHidden)} className={`text-[11px] font-black px-2 py-0.5 rounded-lg border border-black flex items-center gap-1 cursor-pointer ${isHidden ? "bg-emerald-100 text-emerald-900" : "bg-rose-100 text-rose-900"}`}>
                                 {isHidden ? <><Eye className="w-3 h-3" /><span className="hidden sm:inline">Restore</span></> : <><Trash2 className="w-3 h-3" /><span className="hidden sm:inline">Hide</span></>}
                               </button>
                             </div>
@@ -219,7 +288,7 @@ export default function ModuleTable({
                         <div className="space-y-1.5">
                           {currentResponse ? <p className={`font-semibold border-l-2 border-emerald-600 pl-2.5 leading-snug break-words ${isHidden ? "text-gray-400 line-through opacity-60" : "text-gray-900"}`}>{currentResponse}</p> : <span className="text-amber-800 text-xs sm:text-sm block italic font-medium">Awaiting response...</span>}
                           {isModerator && (
-                            <button type="button" onClick={() => handleOpenAnswerModal(item)} className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-black px-2 py-0.5 rounded-lg shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+                            <button type="button" onClick={() => handleOpenAnswerModal(item)} className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-extrabold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-black px-2 py-0.5 rounded-lg shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer">
                               <MessageSquare className="w-3 h-3" /><span className="hidden sm:inline">{currentResponse ? "Edit Answer" : "Answer"}</span>
                             </button>
                           )}
