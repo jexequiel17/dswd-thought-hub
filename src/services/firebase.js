@@ -269,3 +269,42 @@ export const deleteAllEntriesForModule = async (trainerId, moduleTag) => {
     return { success: false, error };
   }
 };
+
+// DEFAULT FALLBACK HEADER TITLE
+export const DEFAULT_HEADER_TITLE = "Trauma Informed - Psychological First Aid Training";
+
+// STANDALONE REAL-TIME LISTENER FOR HEADER TITLE (WITH AUTO-CREATION)
+export const subscribeToHeaderTitle = (trainerId, callback) => {
+  if (!trainerId) return () => {};
+
+  const headerRef = doc(db, "trainers", trainerId, "settings", "header");
+  return onSnapshot(
+    headerRef,
+    async (snapshot) => {
+      if (snapshot.exists() && snapshot.data()?.title) {
+        callback(snapshot.data().title);
+      } else {
+        // Auto-initialize default title in Firestore if none exists yet
+        try {
+          await setDoc(headerRef, { title: DEFAULT_HEADER_TITLE }, { merge: true });
+        } catch (err) {
+          console.error("Failed to seed default header title settings:", err);
+        }
+      }
+    },
+    (err) => console.error("Firestore header title subscription error:", err)
+  );
+};
+
+// SAVE HEADER TITLE TO FIRESTORE
+export const saveHeaderTitle = async (trainerId, newTitle) => {
+  if (!trainerId) return { success: false, error: "Missing trainerId" };
+  try {
+    const docRef = doc(db, "trainers", trainerId, "settings", "header");
+    await setDoc(docRef, { title: newTitle.trim() || DEFAULT_HEADER_TITLE }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving header title:", error);
+    return { success: false, error };
+  }
+};

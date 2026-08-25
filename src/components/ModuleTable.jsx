@@ -15,7 +15,8 @@ import {
   Heart, 
   BookmarkCheck, 
   Download,
-  AlertTriangle
+  AlertTriangle,
+  BookOpen
 } from "lucide-react";
 import AnswerModal from "./AnswerModal";
 import { deleteAllEntriesForModule, db, saveModuleOptions, auth } from "../services/firebase";
@@ -23,12 +24,12 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 
 const DEFAULT_MODULE_OPTIONS = [
-  { tag: "Module 1", title: "Disasters and Emergencies and Their Impact" },
-  { tag: "Module 2", title: "Psychological First Aid Principles & Core Actions" },
-  { tag: "Module 3", title: "Support Strategies & Active Listening" },
-  { tag: "Module 4", title: "Self-Care & Responder Well-being" },
-  { tag: "Module 5", title: "Crisis Escalation & Referral Pathways" },
-  { tag: "Module 6", title: "Action Planning & Community Integration" },
+  { tag: "Module 1", title: "<<No Title>>" },
+  { tag: "Module 2", title: "<<No Title>>" },
+  { tag: "Module 3", title: "<<No Title>>" },
+  { tag: "Module 4", title: "<<No Title>>" },
+  { tag: "Module 5", title: "<<No Title>>" },
+  { tag: "Module 6", title: "<<No Title>>" },
 ];
 
 const TYPE_CONFIG = {
@@ -57,6 +58,99 @@ export const handleTrainerLogout = async () => {
     window.location.href = window.location.origin + window.location.pathname;
   }
 };
+
+function ModuleTitleModal({ isOpen, moduleTag, title, onClose, onSave, isModerator }) {
+  const [editedTitle, setEditedTitle] = useState(title || "");
+
+  useEffect(() => {
+    setEditedTitle(title || "");
+  }, [title, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    if (onSave && editedTitle.trim()) {
+      onSave(editedTitle.trim());
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="w-full max-w-lg bg-[#FFFDF9] border-3 border-black rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-5 relative overflow-hidden"
+        >
+          <div className="flex items-center justify-between gap-3 border-b-2 border-black/10 pb-3 mb-4">
+            <div className="flex items-center gap-2 font-black text-lg text-black">
+              <BookOpen className="w-5 h-5 text-[#B35A53]" />
+              <span className="bg-black/10 px-2 py-0.5 rounded text-xs uppercase">{moduleTag}</span>
+              <span>Module Overview</span>
+            </div>
+            <button 
+              onClick={onClose}
+              className="p-1 text-black hover:bg-black/10 rounded-lg border-2 border-black cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
+
+          {isModerator ? (
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black uppercase text-gray-700">
+                  Module Title
+                </label>
+                <textarea
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  rows={3}
+                  className="w-full p-3 text-sm font-extrabold bg-white text-black border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  placeholder="Enter module title..."
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-black bg-gray-200 hover:bg-gray-300 text-black border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-x-[1px] active:translate-y-[1px] transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-black bg-emerald-400 hover:bg-emerald-500 text-black border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 bg-amber-50 border-2 border-black/20 rounded-xl">
+                <h3 className="text-base font-black text-black leading-snug">{title}</h3>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-black bg-black text-white rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
 
 function DeleteConfirmationModal({ isOpen, moduleTag, onClose, onConfirm, isDeleting }) {
   const [confirmInput, setConfirmInput] = useState("");
@@ -159,26 +253,17 @@ export default function ModuleTable({
   const [isEditingModule, setIsEditingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState(activeModule);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isTitleModalOpen, setIsTitleModalOpen] = useState(false);
 
-  // CORRECTED TRAINER RESOLUTION:
-  // Both trainers AND participants can find the active trainer ID
   const getTrainerId = () => {
-    // 1. Authenticated trainer session
     if (auth?.currentUser?.uid) return auth.currentUser.uid;
-
-    // 2. Explicit prop passed from parent component
     if (trainerId) return trainerId;
-
-    // 3. Extract trainer ID from URL search query (e.g. ?trainer=XYZ)
     if (typeof window !== "undefined") {
       const urlTrainer = new URLSearchParams(window.location.search).get("trainer");
       if (urlTrainer) return urlTrainer;
     }
-
-    // 4. Extract trainer ID directly from passed entries payload
     const foundInEntries = entries.find((e) => e.trainerId)?.trainerId;
     if (foundInEntries) return foundInEntries;
-
     return "";
   };
 
@@ -207,7 +292,6 @@ export default function ModuleTable({
   const [answerText, setAnswerText] = useState("");
   const dropdownRef = useRef(null);
 
-  // Synchronize localStorage key when logged in as a moderator
   useEffect(() => {
     if (effectiveTrainerId && typeof window !== "undefined" && isModerator) {
       localStorage.setItem("currentTrainerId", effectiveTrainerId);
@@ -224,7 +308,6 @@ export default function ModuleTable({
     }
   }, [moduleOptionsProp]);
 
-  // REAL-TIME FIRESTORE LISTENER (Runs for both Trainer & Participant)
   useEffect(() => {
     if (!effectiveTrainerId) {
       setModuleOptions(DEFAULT_MODULE_OPTIONS);
@@ -251,6 +334,28 @@ export default function ModuleTable({
 
     return () => unsubscribe();
   }, [effectiveTrainerId, storageKey]);
+
+  const handleSaveModalTitle = async (newTitle) => {
+    const targetTrainerId = effectiveTrainerId;
+    if (!targetTrainerId) {
+      alert("Error: Trainer session not verified. Title not saved.");
+      return;
+    }
+
+    const updatedOptions = moduleOptions.map((mod) => 
+      mod.tag === activeModule ? { ...mod, title: newTitle } : mod
+    );
+
+    setModuleOptions(updatedOptions);
+    localStorage.setItem(`customModuleOptions_${targetTrainerId}`, JSON.stringify(updatedOptions));
+    setIsTitleModalOpen(false);
+
+    try {
+      await saveModuleOptions(targetTrainerId, updatedOptions);
+    } catch (err) {
+      console.error("Failed to write module titles to Firestore:", err);
+    }
+  };
 
   const handleSaveTitle = async (tag, e) => {
     if (e) {
@@ -514,13 +619,18 @@ export default function ModuleTable({
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-2 w-full min-w-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-white bg-black/40 px-2 py-0.5 rounded border border-black/20 shrink-0">{activeModule}</span>
-              <h2 className="text-xs sm:text-sm font-black text-black tracking-tight truncate">{displayTitle}</h2>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 ml-auto">
-              <span className="text-xs font-bold text-black/90 bg-white/50 px-2 py-0.5 rounded border border-black/10">{displayedEntries.length} Entries</span>
+          <div className="flex flex-nowrap items-center justify-between gap-2.5 w-full min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsTitleModalOpen(true)}
+              className="flex items-center min-w-0 flex-1 cursor-pointer group select-none gap-2 text-left hover:opacity-90 transition-opacity"
+              title="Click to view/edit module title"
+            >
+              <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-white bg-black/40 px-2 py-1 rounded border border-black/20 shrink-0 self-center">{activeModule}</span>
+              <h2 className="text-xs sm:text-sm font-black text-black tracking-tight truncate min-w-0">{displayTitle}</h2>
+            </button>
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <span className="text-xs font-bold text-black/90 bg-white/50 px-2 py-1 rounded border border-black/10 whitespace-nowrap">{displayedEntries.length} Entries</span>
               {isModerator && (
                 <button onClick={() => { setSelectedModule(activeModule); setIsEditingModule(true); }} className="p-1.5 bg-white hover:bg-gray-100 border border-black/40 rounded cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)] transition-all active:translate-x-[1px] active:translate-y-[1px]" title="Change module"><Pencil className="w-3.5 h-3.5 text-black" /></button>
               )}
@@ -615,6 +725,15 @@ export default function ModuleTable({
           </table>
         </div>
       </div>
+
+      <ModuleTitleModal
+        isOpen={isTitleModalOpen}
+        moduleTag={activeModule}
+        title={displayTitle}
+        onClose={() => setIsTitleModalOpen(false)}
+        onSave={handleSaveModalTitle}
+        isModerator={isModerator}
+      />
 
       <AnswerModal isOpen={Boolean(activeAnswerItem)} item={activeAnswerItem} answerText={answerText} setAnswerText={setAnswerText} onClose={handleCloseAnswerModal} onSave={handleSaveAnswerSubmit} />
       

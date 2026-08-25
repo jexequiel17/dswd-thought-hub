@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { submitEntry } from "../services/firebase";
-import { Send, MessageSquarePlus, User, Tag, HelpCircle, X, Heart, AlertTriangle, Loader2 } from "lucide-react";
+import { Send, MessageSquarePlus, User, Tag, HelpCircle, X, Heart, AlertTriangle, Loader2, ShieldAlert } from "lucide-react";
 
 export default function QuestionForm({ 
   onSubmitEntry, 
@@ -17,6 +17,9 @@ export default function QuestionForm({
 
   // FIX 1: Combine boolean flags so internal state works even if parent passes boolean false
   const isSubmitting = Boolean(externalIsSubmitting) || internalIsSubmitting;
+
+  // Check if a trainer session is active
+  const isTrainerActive = Boolean(trainerId && trainerId.trim() !== "");
 
   const categories = [
     {
@@ -44,7 +47,9 @@ export default function QuestionForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!content.trim() || isSubmitting) return;
+    
+    // Prevent execution if no message content, currently submitting, OR no trainer logged in
+    if (!content.trim() || isSubmitting || !isTrainerActive) return;
 
     // Immediately trigger local loading state
     setInternalIsSubmitting(true);
@@ -82,7 +87,7 @@ export default function QuestionForm({
 
       // Optional callback for parent component updates
       if (onSubmitEntry) {
-        await onSubmitEntry({ name: formattedName, type, content, id: result.id, trainerId, module: activeModule });
+        await onSubmitEntry({ name: formattedName, type, content: content.trim(), id: result.id, trainerId, module: activeModule });
       }
 
       setName("");
@@ -129,6 +134,16 @@ export default function QuestionForm({
             )}
           </div>
 
+          {/* Warning notice when no trainer is logged in */}
+          {!isTrainerActive && (
+            <div className="mb-3 p-2.5 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-center gap-2 text-amber-900 shrink-0">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+              <p className="text-xs font-bold leading-tight">
+                No active trainer session. Submissions are temporarily paused.
+              </p>
+            </div>
+          )}
+
           {/* Form Fields Container */}
           <div className="space-y-3.5 flex flex-col flex-1">
             {/* Name Input */}
@@ -141,7 +156,7 @@ export default function QuestionForm({
                 placeholder="e.g. Juan Dela Cruz"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isTrainerActive}
                 className="w-full px-3 py-2 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
@@ -162,7 +177,7 @@ export default function QuestionForm({
                       key={cat.id}
                       type="button"
                       onClick={() => setType(cat.id)}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !isTrainerActive}
                       className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         isSelected
                           ? `${cat.activeColor} shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] translate-y-[-1px]`
@@ -183,11 +198,11 @@ export default function QuestionForm({
                 <HelpCircle className="w-4 h-4 text-[#417dc1]" /> Your Message
               </label>
               <textarea
-                placeholder="Write your thought, question, or appreciation..."
+                placeholder={isTrainerActive ? "Write your thought, question, or appreciation..." : "Submissions are disabled until a trainer logs in."}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 required
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isTrainerActive}
                 className="w-full p-3 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] resize-none transition-all flex-1 h-full disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
@@ -196,10 +211,10 @@ export default function QuestionForm({
 
         {/* Submit Button */}
         <motion.button
-          whileHover={isSubmitting ? {} : { scale: 1.01 }}
-          whileTap={isSubmitting ? {} : { scale: 0.98 }}
+          whileHover={isSubmitting || !isTrainerActive ? {} : { scale: 1.01 }}
+          whileTap={isSubmitting || !isTrainerActive ? {} : { scale: 0.98 }}
           type="submit"
-          disabled={isSubmitting || !content.trim()}
+          disabled={isSubmitting || !content.trim() || !isTrainerActive}
           className="w-full inline-flex items-center justify-center gap-2 bg-[#417dc1] hover:bg-[#6DA0DC] text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-3 text-sm sm:text-base shrink-0"
         >
           {isSubmitting ? (
@@ -207,6 +222,8 @@ export default function QuestionForm({
               <Loader2 className="w-4 h-4 animate-spin" />
               Sending...
             </>
+          ) : !isTrainerActive ? (
+            "Waiting for Trainer Session..."
           ) : (
             <>
               <Send className="w-4 h-4 stroke-[2.5]" />

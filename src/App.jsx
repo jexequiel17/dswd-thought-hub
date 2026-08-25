@@ -181,31 +181,32 @@ export default function App() {
         <Header onOpenGuidelines={() => setShowGuidelines(true)} />
 
         {/* Trainer Auth & Admin Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-l from-[#FEEA9A] to-[#F7C948] border-2 border-black p-2 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] shrink-0">
-          <div className="text-xs font-black uppercase tracking-wide px-2 text-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-l from-[#FEEA9A] to-[#F7C948] border-2 border-black p-2 rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] shrink-0">
+          <div className="text-[11px] sm:text-xs font-black uppercase tracking-wide px-1 sm:px-2 text-gray-700">
             {isModerator ? "Trainer Control Panel" : "Participant View"}
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
             {isModerator ? (
               <>
                 <button
                   onClick={handleCopyParticipantLink}
-                  className="bg-[#A0C4EC] hover:bg-[#417dc1] border border-black font-extrabold text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                  className="bg-[#A0C4EC] hover:bg-[#417dc1] border border-black font-extrabold text-[11px] sm:text-xs px-2 sm:px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer whitespace-nowrap h-7 leading-none"
                 >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedLink ? "Link Copied!" : "Copy Participant Link"}
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-800 shrink-0" /> : <Copy className="w-3.5 h-3.5 shrink-0" />}
+                  <span>{copiedLink ? "Copied!" : "Copy Link"}</span>
+                  <span className="hidden sm:inline">{!copiedLink && " Participant"}</span>
                 </button>
 
-                <span className="bg-emerald-100 text-emerald-900 border border-emerald-600 font-extrabold text-xs px-2.5 py-1 rounded-lg flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5" /> {user.email.split("@")[0]}
+                <span className="bg-emerald-100 text-emerald-900 border border-black font-extrabold text-[11px] sm:text-xs px-2 sm:px-2.5 py-1 rounded-lg flex items-center gap-1 whitespace-nowrap h-7 leading-none">
+                  <Shield className="w-3.5 h-3.5 shrink-0" /> {user.email.split("@")[0]}
                 </span>
 
                 <button 
                   onClick={handleLogout} 
-                  className="bg-rose-100 hover:bg-rose-200 text-rose-900 border border-black font-extrabold text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+                  className="bg-rose-100 hover:bg-rose-200 text-rose-900 border border-black font-extrabold text-[11px] sm:text-xs px-2 sm:px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer whitespace-nowrap h-7 leading-none"
                 >
-                  <LogOut className="w-3.5 h-3.5" /> Logout
+                  <LogOut className="w-3.5 h-3.5 shrink-0" /> Logout
                 </button>
               </>
             ) : !urlTrainerId ? (
