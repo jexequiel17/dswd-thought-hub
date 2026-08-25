@@ -85,7 +85,7 @@ export default function ModuleTable({
 
     const headers = ["Name", "Type", "Module", "Question / Content", "Response", "Status"];
 
-    const rowsXml = entries.map((item) => {
+    const rowsXml = displayedEntries.map((item) => {
       const isHidden = item.hidden || item.status === "HIDDEN";
       const response = item.answer || item.response || "";
       const rawType = item.type || "question";
@@ -172,7 +172,16 @@ export default function ModuleTable({
   };
 
   const currentOption = MODULE_OPTIONS.find((m) => m.tag === selectedModule) || MODULE_OPTIONS[0];
-  const displayedEntries = isModerator ? entries : entries.filter((e) => !e.hidden && e.status !== "HIDDEN");
+
+  // 1. Filter out hidden entries for non-moderators
+  const rawDisplayedEntries = isModerator ? entries : entries.filter((e) => !e.hidden && e.status !== "HIDDEN");
+
+  // 2. Sort entries so the newest timestamp/createdAt appears at the top
+  const displayedEntries = [...rawDisplayedEntries].sort((a, b) => {
+    const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime());
+    const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime());
+    return timeB - timeA;
+  });
 
   return (
     <div className="flex flex-col h-full max-h-full space-y-2 min-h-0">

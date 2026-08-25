@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { submitEntry } from "../services/firebase";
-import { Send, MessageSquarePlus, User, Tag, HelpCircle, X, Heart, AlertTriangle } from "lucide-react";
+import { Send, MessageSquarePlus, User, Tag, HelpCircle, X, Heart, AlertTriangle, Loader2 } from "lucide-react";
 
 export default function QuestionForm({ 
   onSubmitEntry, 
@@ -15,7 +15,8 @@ export default function QuestionForm({
   const [content, setContent] = useState("");
   const [internalIsSubmitting, setInternalIsSubmitting] = useState(false);
 
-  const isSubmitting = externalIsSubmitting !== undefined ? externalIsSubmitting : internalIsSubmitting;
+  // FIX 1: Combine boolean flags so internal state works even if parent passes boolean false
+  const isSubmitting = Boolean(externalIsSubmitting) || internalIsSubmitting;
 
   const categories = [
     {
@@ -45,12 +46,12 @@ export default function QuestionForm({
     e.preventDefault();
     if (!content.trim() || isSubmitting) return;
 
+    // Immediately trigger local loading state
     setInternalIsSubmitting(true);
 
     try {
       const formattedName = name.trim() || "Anonymous";
       
-      // Save directly to Firestore using submitEntry including trainerId & module
       const result = await submitEntry({
         trainerId,
         module: activeModule,
@@ -64,6 +65,9 @@ export default function QuestionForm({
       if (!result.success) {
         throw new Error("Failed to save to Firestore");
       }
+
+      // FIX 2: Add a minimum delay so the loading spinner stays visible
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // Local storage history persistence
       const existingThoughts = JSON.parse(localStorage.getItem("mySubmittedThoughts") || "[]");
@@ -116,7 +120,8 @@ export default function QuestionForm({
               <button
                 type="button"
                 onClick={onClose}
-                className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 border border-black cursor-pointer"
+                disabled={isSubmitting}
+                className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 border border-black cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Close form"
               >
                 <X className="w-5 h-5" />
@@ -136,7 +141,8 @@ export default function QuestionForm({
                 placeholder="e.g. Juan Dela Cruz"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] transition-all"
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -156,7 +162,8 @@ export default function QuestionForm({
                       key={cat.id}
                       type="button"
                       onClick={() => setType(cat.id)}
-                      className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                      disabled={isSubmitting}
+                      className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         isSelected
                           ? `${cat.activeColor} shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] translate-y-[-1px]`
                           : "bg-[#FFFDF9] border-black/30 text-gray-700 hover:border-black/60 hover:bg-gray-50"
@@ -180,7 +187,8 @@ export default function QuestionForm({
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 required
-                className="w-full p-3 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] resize-none transition-all flex-1 h-full"
+                disabled={isSubmitting}
+                className="w-full p-3 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] resize-none transition-all flex-1 h-full disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -188,14 +196,23 @@ export default function QuestionForm({
 
         {/* Submit Button */}
         <motion.button
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.98 }}
+          whileHover={isSubmitting ? {} : { scale: 1.01 }}
+          whileTap={isSubmitting ? {} : { scale: 0.98 }}
           type="submit"
-          disabled={isSubmitting}
-          className="w-full inline-flex items-center justify-center gap-2 bg-[#417dc1] hover:bg-[#6DA0DC] text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer disabled:opacity-50 mt-3 text-sm sm:text-base shrink-0"
+          disabled={isSubmitting || !content.trim()}
+          className="w-full inline-flex items-center justify-center gap-2 bg-[#417dc1] hover:bg-[#6DA0DC] text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-3 text-sm sm:text-base shrink-0"
         >
-          <Send className="w-4 h-4 stroke-[2.5]" />
-          {isSubmitting ? "Sending..." : "Send to Thought Hub"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4 stroke-[2.5]" />
+              Send to Thought Hub
+            </>
+          )}
         </motion.button>
       </motion.form>
     </div>
