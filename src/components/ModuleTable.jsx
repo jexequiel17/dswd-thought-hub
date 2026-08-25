@@ -24,12 +24,12 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 
 const DEFAULT_MODULE_OPTIONS = [
-  { tag: "Module 1", title: "<<No Title>>" },
-  { tag: "Module 2", title: "<<No Title>>" },
-  { tag: "Module 3", title: "<<No Title>>" },
-  { tag: "Module 4", title: "<<No Title>>" },
-  { tag: "Module 5", title: "<<No Title>>" },
-  { tag: "Module 6", title: "<<No Title>>" },
+  { tag: "Module 1", title: "<no title>" },
+  { tag: "Module 2", title: "<no title>" },
+  { tag: "Module 3", title: "<no title>" },
+  { tag: "Module 4", title: "<no title>" },
+  { tag: "Module 5", title: "<no title>" },
+  { tag: "Module 6", title: "<no title>" },
 ];
 
 const TYPE_CONFIG = {
@@ -335,15 +335,16 @@ export default function ModuleTable({
     return () => unsubscribe();
   }, [effectiveTrainerId, storageKey]);
 
-  const handleSaveModalTitle = async (newTitle) => {
+const handleSaveModalTitle = async (newTitle) => {
     const targetTrainerId = effectiveTrainerId;
     if (!targetTrainerId) {
       alert("Error: Trainer session not verified. Title not saved.");
       return;
     }
 
+    // UPDATED: Trim the input, and default to "<no title>" if left empty
     const updatedOptions = moduleOptions.map((mod) => 
-      mod.tag === activeModule ? { ...mod, title: newTitle } : mod
+      mod.tag === activeModule ? { ...mod, title: newTitle.trim() || "<no title>" } : mod
     );
 
     setModuleOptions(updatedOptions);

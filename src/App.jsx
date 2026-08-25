@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ShieldCheck, Sparkles, X, Key, Shield, LogOut, LogIn, Copy, Check } from "lucide-react"; 
+import { ShieldCheck, Sparkles, X, Key, Shield, LogOut, LogIn, Copy, Check, UserPlus } from "lucide-react"; 
 import Header from "./components/Header";
 import QuestionForm from "./components/QuestionForm";
 import ModuleTable from "./components/ModuleTable";
@@ -10,18 +10,19 @@ import {
   toggleHideEntry,
   saveAnswerEntry,
   loginTrainer,
+  signUpTrainer, // Added signup function
   logoutTrainer,
   subscribeToAuthChanges
 } from "./services/firebase";
 import "./App.css";
 
 const MODULE_TITLES = {
-  "Module 1": "Disasters and Emergencies and Their Impact",
-  "Module 2": "Psychological First Aid Principles & Core Actions",
-  "Module 3": "Support Strategies & Active Listening",
-  "Module 4": "Self-Care & Responder Well-being",
-  "Module 5": "Crisis Escalation & Referral Pathways",
-  "Module 6": "Action Planning & Community Integration",
+  "Module 1": "<<NO TITLE>>",
+  "Module 2": "<<NO TITLE>>",
+  "Module 3": "<<NO TITLE>>",
+  "Module 4": "<<NO TITLE>>",
+  "Module 5": "<<NO TITLE>>",
+  "Module 6": "<<NO TITLE>>",
 };
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
   const activeTrainerId = user ? user.uid : urlTrainerId;
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // "login" or "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -100,7 +102,11 @@ export default function App() {
     setAuthLoading(true);
 
     try {
-      await loginTrainer(email, password);
+      if (authMode === "login") {
+        await loginTrainer(email, password);
+      } else {
+        await signUpTrainer(email, password);
+      }
       setShowAuthModal(false);
       setEmail("");
       setPassword("");
@@ -211,10 +217,10 @@ export default function App() {
               </>
             ) : !urlTrainerId ? (
               <button 
-                onClick={() => { setAuthError(""); setShowAuthModal(true); }} 
+                onClick={() => { setAuthError(""); setAuthMode("login"); setShowAuthModal(true); }} 
                 className="bg-[#F7C948] hover:bg-amber-400 text-black border-2 border-black font-extrabold text-xs px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
               >
-                <Key className="w-3.5 h-3.5" /> Trainer Login
+                <Key className="w-3.5 h-3.5" /> Trainer Access
               </button>
             ) : null}
           </div>
@@ -241,7 +247,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* TRAINER AUTHENTICATION MODAL */}
+      {/* TRAINER AUTHENTICATION MODAL (LOGIN & SIGN UP) */}
       <AnimatePresence>
         {showAuthModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAuthModal(false)}>
@@ -252,10 +258,36 @@ export default function App() {
             >
               <div className="flex justify-between items-center mb-4 border-b-2 border-black/10 pb-3">
                 <h3 className="font-black text-base uppercase flex items-center gap-2 text-black tracking-wider">
-                  <Shield className="w-5 h-5 text-amber-600" /> Trainer Login
+                  <Shield className="w-5 h-5 text-amber-600" /> Trainer Portal
                 </h3>
                 <button onClick={() => setShowAuthModal(false)} className="w-7 h-7 rounded-full bg-gray-100 hover:bg-red-100 border border-black flex items-center justify-center transition-colors cursor-pointer">
                   <X className="w-4 h-4 text-black" />
+                </button>
+              </div>
+
+              {/* Mode Selector Tabs */}
+              <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 border-2 border-black rounded-xl mb-4">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                  className={`py-1.5 font-black text-xs rounded-lg transition-all cursor-pointer ${
+                    authMode === "login"
+                      ? "bg-[#F7C948] text-black border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                      : "text-gray-600 hover:text-black"
+                  }`}
+                >
+                  Log In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("signup"); setAuthError(""); }}
+                  className={`py-1.5 font-black text-xs rounded-lg transition-all cursor-pointer ${
+                    authMode === "signup"
+                      ? "bg-[#F7C948] text-black border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                      : "text-gray-600 hover:text-black"
+                  }`}
+                >
+                  Sign Up
                 </button>
               </div>
 
@@ -291,8 +323,17 @@ export default function App() {
                   disabled={authLoading}
                   className="w-full py-2.5 bg-[#F7C948] hover:bg-amber-400 disabled:opacity-50 border-2 border-black font-extrabold text-sm rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer mt-2 flex items-center justify-center gap-2"
                 >
-                  <LogIn className="w-4 h-4" />
-                  {authLoading ? "Logging in..." : "Log In"}
+                  {authMode === "login" ? (
+                    <>
+                      <LogIn className="w-4 h-4" />
+                      {authLoading ? "Logging in..." : "Log In"}
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      {authLoading ? "Registering..." : "Create Account"}
+                    </>
+                  )}
                 </button>
               </form>
             </motion.div>

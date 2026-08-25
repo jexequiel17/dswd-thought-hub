@@ -36,12 +36,12 @@ export const auth = getAuth(app);
 
 // DEFAULT FALLBACK MODULE OPTIONS
 export const DEFAULT_MODULE_OPTIONS = [
-  { tag: "Module 1", title: "Disasters and Emergencies and Their Impact" },
-  { tag: "Module 2", title: "Psychological First Aid Principles & Core Actions" },
-  { tag: "Module 3", title: "Support Strategies & Active Listening" },
-  { tag: "Module 4", title: "Self-Care & Responder Well-being" },
-  { tag: "Module 5", title: "Crisis Escalation & Referral Pathways" },
-  { tag: "Module 6", title: "Action Planning & Community Integration" },
+  { tag: "Module 1", title: "<no title>" },
+  { tag: "Module 2", title: "<no title>" },
+  { tag: "Module 3", title: "<no title>" },
+  { tag: "Module 4", title: "<no title>" },
+  { tag: "Module 5", title: "<no title>" },
+  { tag: "Module 6", title: "<no title>" },
 ];
 
 // AUTHENTICATION HELPERS
