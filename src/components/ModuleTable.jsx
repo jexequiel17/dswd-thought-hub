@@ -14,11 +14,15 @@ import {
   AlertCircle, 
   Heart, 
   BookmarkCheck, 
-  Download 
+  Download,
+  AlertTriangle
 } from "lucide-react";
 import AnswerModal from "./AnswerModal";
+import { deleteAllEntriesForModule, db, saveModuleOptions, auth } from "../services/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { signOut } from "firebase/auth";
 
-const MODULE_OPTIONS = [
+const DEFAULT_MODULE_OPTIONS = [
   { tag: "Module 1", title: "Disasters and Emergencies and Their Impact" },
   { tag: "Module 2", title: "Psychological First Aid Principles & Core Actions" },
   { tag: "Module 3", title: "Support Strategies & Active Listening" },
@@ -33,23 +37,254 @@ const TYPE_CONFIG = {
   appreciation: { label: "Appreciation", bg: "bg-rose-100 text-rose-800 border-rose-300", icon: Heart },
 };
 
+export const handleTrainerLogout = async () => {
+  try {
+    const currentUid = auth?.currentUser?.uid || localStorage.getItem("currentTrainerId");
+
+    if (currentUid) {
+      await saveModuleOptions(currentUid, DEFAULT_MODULE_OPTIONS);
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.clear();
+    }
+
+    await signOut(auth);
+    window.location.href = window.location.origin + window.location.pathname;
+  } catch (error) {
+    console.error("Logout failed:", error);
+    localStorage.clear();
+    window.location.href = window.location.origin + window.location.pathname;
+  }
+};
+
+function DeleteConfirmationModal({ isOpen, moduleTag, onClose, onConfirm, isDeleting }) {
+  const [confirmInput, setConfirmInput] = useState("");
+
+  useEffect(() => {
+    if (isOpen) setConfirmInput("");
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const isMatched = confirmInput.trim().toLowerCase() === "delete";
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isMatched && !isDeleting) {
+      onConfirm();
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="w-full max-w-md bg-[#FFFDF9] border-3 border-black rounded-2xl shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-5 relative overflow-hidden"
+        >
+          <div className="flex items-start justify-between gap-3 border-b-2 border-black/10 pb-3 mb-4">
+            <div className="flex items-center gap-2 text-rose-600 font-black text-lg">
+              <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+              <span>Confirm Deletion</span>
+            </div>
+            <button 
+              onClick={onClose}
+              disabled={isDeleting}
+              className="p-1 text-black hover:bg-black/10 rounded-lg border-2 border-black cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm font-bold text-gray-800 leading-relaxed">
+              Are you sure you want to delete <span className="underline decoration-rose-500 decoration-2">ALL</span> entries for <strong className="text-black bg-rose-100 px-1.5 py-0.5 rounded border border-rose-300">{moduleTag}</strong>? This action cannot be undone.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-black uppercase text-gray-700">
+                Type <span className="text-rose-600 font-extrabold">&quot;delete&quot;</span> below to confirm:
+              </label>
+              <input
+                type="text"
+                value={confirmInput}
+                onChange={(e) => setConfirmInput(e.target.value)}
+                placeholder="delete"
+                disabled={isDeleting}
+                autoFocus
+                className="w-full px-3 py-2 text-sm font-extrabold bg-white text-black border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:outline-none focus:ring-2 focus:ring-rose-400 placeholder:text-gray-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-black bg-gray-200 hover:bg-gray-300 text-black border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-x-[1px] active:translate-y-[1px] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!isMatched || isDeleting}
+                className="px-4 py-2 text-xs font-black bg-rose-500 hover:bg-rose-600 disabled:bg-rose-300 disabled:cursor-not-allowed text-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? "Deleting..." : "Confirm Delete"}</span>
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
+
 export default function ModuleTable({ 
   entries = [], 
   activeModule = "Module 1", 
   moduleTitle = "", 
   trainerId = "",
   isModerator = false, 
+  moduleOptionsProp = [],
   onModuleChange,
   onToggleHideEntry,
-  onSaveAnswer
+  onSaveAnswer,
+  onDeleteAllEntries
 }) {
   const [isEditingModule, setIsEditingModule] = useState(false);
   const [selectedModule, setSelectedModule] = useState(activeModule);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // CORRECTED TRAINER RESOLUTION:
+  // Both trainers AND participants can find the active trainer ID
+  const getTrainerId = () => {
+    // 1. Authenticated trainer session
+    if (auth?.currentUser?.uid) return auth.currentUser.uid;
+
+    // 2. Explicit prop passed from parent component
+    if (trainerId) return trainerId;
+
+    // 3. Extract trainer ID from URL search query (e.g. ?trainer=XYZ)
+    if (typeof window !== "undefined") {
+      const urlTrainer = new URLSearchParams(window.location.search).get("trainer");
+      if (urlTrainer) return urlTrainer;
+    }
+
+    // 4. Extract trainer ID directly from passed entries payload
+    const foundInEntries = entries.find((e) => e.trainerId)?.trainerId;
+    if (foundInEntries) return foundInEntries;
+
+    return "";
+  };
+
+  const effectiveTrainerId = getTrainerId();
+  const storageKey = effectiveTrainerId ? `customModuleOptions_${effectiveTrainerId}` : "customModuleOptions_default";
+
+  const [moduleOptions, setModuleOptions] = useState(() => {
+    if (Array.isArray(moduleOptionsProp) && moduleOptionsProp.length > 0) {
+      return moduleOptionsProp;
+    }
+    try {
+      const cached = localStorage.getItem(storageKey);
+      return cached ? JSON.parse(cached) : DEFAULT_MODULE_OPTIONS;
+    } catch {
+      return DEFAULT_MODULE_OPTIONS;
+    }
+  });
+
+  const [editingTag, setEditingTag] = useState(null);
+  const [editingTitleInput, setEditingTitleInput] = useState("");
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const [activeAnswerItem, setActiveAnswerItem] = useState(null);
   const [answerText, setAnswerText] = useState("");
   const dropdownRef = useRef(null);
+
+  // Synchronize localStorage key when logged in as a moderator
+  useEffect(() => {
+    if (effectiveTrainerId && typeof window !== "undefined" && isModerator) {
+      localStorage.setItem("currentTrainerId", effectiveTrainerId);
+    }
+  }, [effectiveTrainerId, isModerator]);
+
+  useEffect(() => {
+    setSelectedModule(activeModule);
+  }, [activeModule]);
+
+  useEffect(() => {
+    if (Array.isArray(moduleOptionsProp) && moduleOptionsProp.length > 0) {
+      setModuleOptions(moduleOptionsProp);
+    }
+  }, [moduleOptionsProp]);
+
+  // REAL-TIME FIRESTORE LISTENER (Runs for both Trainer & Participant)
+  useEffect(() => {
+    if (!effectiveTrainerId) {
+      setModuleOptions(DEFAULT_MODULE_OPTIONS);
+      return;
+    }
+
+    const docRef = doc(db, "trainers", effectiveTrainerId, "settings", "modules");
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (snapshot.exists() && Array.isArray(snapshot.data()?.options)) {
+          const remoteOptions = snapshot.data().options;
+          setModuleOptions(remoteOptions);
+          localStorage.setItem(storageKey, JSON.stringify(remoteOptions));
+        } else {
+          setModuleOptions(DEFAULT_MODULE_OPTIONS);
+        }
+      },
+      (error) => {
+        console.error("Firestore module titles listener error:", error);
+        setModuleOptions(DEFAULT_MODULE_OPTIONS);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [effectiveTrainerId, storageKey]);
+
+  const handleSaveTitle = async (tag, e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    
+    const targetTrainerId = effectiveTrainerId;
+
+    if (!targetTrainerId) {
+      alert("Error: Trainer session not verified. Title not saved.");
+      return;
+    }
+
+    const updatedOptions = moduleOptions.map((mod) => 
+      mod.tag === tag ? { ...mod, title: editingTitleInput.trim() || mod.title } : mod
+    );
+
+    setModuleOptions(updatedOptions);
+    localStorage.setItem(`customModuleOptions_${targetTrainerId}`, JSON.stringify(updatedOptions));
+    setEditingTag(null);
+
+    try {
+      await saveModuleOptions(targetTrainerId, updatedOptions);
+    } catch (err) {
+      console.error("Failed to write module titles to Firestore:", err);
+    }
+  };
+
+  const handleStartEditingTitle = (mod, e) => {
+    if (e) e.stopPropagation();
+    setEditingTag(mod.tag);
+    setEditingTitleInput(mod.title);
+  };
 
   const [myMarkedIds, setMyMarkedIds] = useState(() => {
     try {
@@ -71,7 +306,30 @@ export default function ModuleTable({
     localStorage.setItem("myMarkedEntryIds", JSON.stringify(updated));
   };
 
-  // Pure JavaScript Native Spreadsheet Exporter (No XLSX library needed)
+  const handleOpenDeleteModal = () => {
+    if (!effectiveTrainerId) {
+      alert("No active trainer ID found to delete entries for.");
+      return;
+    }
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteAll = async () => {
+    setIsDeleting(true);
+    try {
+      if (onDeleteAllEntries) {
+        await onDeleteAllEntries(effectiveTrainerId, activeModule);
+      } else {
+        await deleteAllEntriesForModule(effectiveTrainerId, activeModule);
+      }
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error("Failed to delete entries:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleExportNativeSpreadsheet = () => {
     if (!entries || entries.length === 0) return;
 
@@ -160,23 +418,24 @@ export default function ModuleTable({
 
   const handleSaveAnswerSubmit = async () => {
     if (onSaveAnswer && activeAnswerItem) {
-      await onSaveAnswer(activeAnswerItem, answerText, trainerId || activeAnswerItem.trainerId, activeModule);
+      await onSaveAnswer(activeAnswerItem, answerText, effectiveTrainerId, activeModule);
     }
     handleCloseAnswerModal();
   };
 
   const handleToggleHide = (item, shouldHide) => {
     if (onToggleHideEntry) {
-      onToggleHideEntry(item, shouldHide, trainerId || item.trainerId, activeModule);
+      onToggleHideEntry(item, shouldHide, effectiveTrainerId, activeModule);
     }
   };
 
-  const currentOption = MODULE_OPTIONS.find((m) => m.tag === selectedModule) || MODULE_OPTIONS[0];
+  const currentOption = moduleOptions.find((m) => m.tag === selectedModule) || moduleOptions[0];
+  const currentActiveOption = moduleOptions.find((m) => m.tag === activeModule) || moduleOptions[0];
 
-  // 1. Filter out hidden entries for non-moderators
+  const displayTitle = currentActiveOption?.title || moduleTitle;
+
   const rawDisplayedEntries = isModerator ? entries : entries.filter((e) => !e.hidden && e.status !== "HIDDEN");
 
-  // 2. Sort entries so the newest timestamp/createdAt appears at the top
   const displayedEntries = [...rawDisplayedEntries].sort((a, b) => {
     const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime());
     const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime());
@@ -198,11 +457,51 @@ export default function ModuleTable({
                 <AnimatePresence>
                   {isDropdownOpen && (
                     <motion.div initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5, scale: 0.98 }} className="absolute top-full left-0 mt-1.5 w-full bg-[#FFFDF9] border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-50 overflow-hidden py-1 max-h-52 overflow-y-auto custom-scrollbar">
-                      {MODULE_OPTIONS.map((mod) => (
-                        <button key={mod.tag} type="button" onClick={() => { setSelectedModule(mod.tag); setIsDropdownOpen(false); }} className={`w-full text-left px-3 py-2 text-sm font-bold border-b border-black/10 last:border-0 flex items-center justify-between gap-2 transition-colors cursor-pointer ${selectedModule === mod.tag ? "bg-[#E38B80]/30 text-black font-black" : "hover:bg-[#E38B80]/15 text-gray-800"}`}>
-                          <span className="truncate"><span className={`inline-block px-2 py-0.5 rounded mr-2 text-xs font-black uppercase border border-black/20 ${selectedModule === mod.tag ? "bg-black text-white" : "bg-black/10 text-black"}`}>{mod.tag}</span>{mod.title}</span>
-                          {selectedModule === mod.tag && <Check className="w-4 h-4 text-emerald-700 shrink-0 stroke-[3]" />}
-                        </button>
+                      {moduleOptions.map((mod) => (
+                        <div key={mod.tag} className={`w-full px-3 py-2 text-sm font-bold border-b border-black/10 last:border-0 flex items-center justify-between gap-2 transition-colors ${selectedModule === mod.tag ? "bg-[#E38B80]/30 text-black font-black" : "hover:bg-[#E38B80]/15 text-gray-800"}`}>
+                          <div 
+                            onClick={() => { 
+                              if (editingTag !== mod.tag) {
+                                setSelectedModule(mod.tag); 
+                                setIsDropdownOpen(false); 
+                              }
+                            }} 
+                            className="flex-1 flex items-center gap-2 truncate cursor-pointer"
+                          >
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-black uppercase border border-black/20 shrink-0 ${selectedModule === mod.tag ? "bg-black text-white" : "bg-black/10 text-black"}`}>{mod.tag}</span>
+                            
+                            {editingTag === mod.tag ? (
+                              <input
+                                type="text"
+                                value={editingTitleInput}
+                                onChange={(e) => setEditingTitleInput(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveTitle(mod.tag, e);
+                                }}
+                                className="px-2 py-0.5 border border-black rounded bg-white text-black font-extrabold text-xs w-full focus:outline-none"
+                                autoFocus
+                              />
+                            ) : (
+                              <span className="truncate">{mod.title}</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {isModerator && (
+                              editingTag === mod.tag ? (
+                                <button type="button" onClick={(e) => handleSaveTitle(mod.tag, e)} className="p-1 text-emerald-700 hover:bg-emerald-100 rounded border border-emerald-500">
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                </button>
+                              ) : (
+                                <button type="button" onClick={(e) => handleStartEditingTitle(mod, e)} className="p-1 text-black/60 hover:text-black hover:bg-black/10 rounded">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )
+                            )}
+                            {selectedModule === mod.tag && <Check className="w-4 h-4 text-emerald-700 shrink-0 stroke-[3]" />}
+                          </div>
+                        </div>
                       ))}
                     </motion.div>
                   )}
@@ -218,7 +517,7 @@ export default function ModuleTable({
           <div className="flex flex-wrap items-center justify-between gap-2 w-full min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
               <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-white bg-black/40 px-2 py-0.5 rounded border border-black/20 shrink-0">{activeModule}</span>
-              <h2 className="text-xs sm:text-sm font-black text-black tracking-tight truncate">{moduleTitle}</h2>
+              <h2 className="text-xs sm:text-sm font-black text-black tracking-tight truncate">{displayTitle}</h2>
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-auto">
               <span className="text-xs font-bold text-black/90 bg-white/50 px-2 py-0.5 rounded border border-black/10">{displayedEntries.length} Entries</span>
@@ -228,6 +527,11 @@ export default function ModuleTable({
               {isModerator && (
                 <button onClick={handleExportNativeSpreadsheet} className="p-1.5 bg-white hover:bg-gray-100 border border-black/40 rounded cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)] transition-all active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-1 text-xs font-bold text-black px-2" title="Export Spreadsheet">
                   <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Export</span>
+                </button>
+              )}
+              {isModerator && (
+                <button disabled={isDeleting} onClick={handleOpenDeleteModal} className="p-1.5 bg-rose-500 hover:bg-rose-600 border border-black/40 rounded cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,0.8)] transition-all active:translate-x-[1px] active:translate-y-[1px] flex items-center gap-1 text-xs font-bold text-white px-2 disabled:opacity-50" title="Delete All Entries">
+                  <Trash2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete All"}</span>
                 </button>
               )}
             </div>
@@ -311,7 +615,16 @@ export default function ModuleTable({
           </table>
         </div>
       </div>
+
       <AnswerModal isOpen={Boolean(activeAnswerItem)} item={activeAnswerItem} answerText={answerText} setAnswerText={setAnswerText} onClose={handleCloseAnswerModal} onSave={handleSaveAnswerSubmit} />
+      
+      <DeleteConfirmationModal 
+        isOpen={isDeleteModalOpen} 
+        moduleTag={activeModule} 
+        onClose={() => setIsDeleteModalOpen(false)} 
+        onConfirm={handleConfirmDeleteAll} 
+        isDeleting={isDeleting} 
+      />
     </div>
   );
 }

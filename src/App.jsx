@@ -343,19 +343,17 @@ export default function App() {
       </AnimatePresence>
 
       {/* MOBILE FLOATING ACTION BUTTON */} 
-      {!isModerator && (
-        <motion.button
-          animate={{ y: [0, -4, 0] }}
-          transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-          onClick={() => setIsMobileFormOpen(true)}
-          className="lg:hidden fixed bottom-6 right-6 bg-[#417dc1] hover:bg-[#6DA0DC] text-white font-black px-4 py-3 rounded-full border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 z-40 cursor-pointer active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
-        >
-          <motion.div animate={{ rotate: [0, 360] }} transition={{ repeat: Infinity, duration: 6, ease: "linear" }}>
-            <Sparkles className="w-5 h-5 text-[#ffff]" />
-          </motion.div>
-          <span className="text-xs uppercase tracking-wider font-extrabold pr-0.5">Ask Question</span>
-        </motion.button>
-      )}
+      <motion.button
+        animate={{ y: [0, -4, 0] }}
+        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+        onClick={() => setIsMobileFormOpen(true)}
+        className="lg:hidden fixed bottom-6 right-6 bg-[#417dc1] hover:bg-[#6DA0DC] text-white font-black px-4 py-3 rounded-full border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center gap-2 z-40 cursor-pointer active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
+      >
+        <motion.div animate={{ rotate: [0, 360] }} transition={{ repeat: Infinity, duration: 6, ease: "linear" }}>
+          <Sparkles className="w-5 h-5 text-[#ffff]" />
+        </motion.div>
+        <span className="text-xs uppercase tracking-wider font-extrabold pr-0.5">Ask Question</span>
+      </motion.button>
 
       {/* Mobile Modal Form Overlay */}
       <AnimatePresence>
