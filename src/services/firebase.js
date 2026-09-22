@@ -34,6 +34,9 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
+// DEFAULT FALLBACK HEADER TITLE
+export const DEFAULT_HEADER_TITLE = "Trainer Dashboard";
+
 // DEFAULT FALLBACK MODULE OPTIONS
 export const DEFAULT_MODULE_OPTIONS = [
   { tag: "Module 1", title: "<no title>" },
@@ -42,6 +45,12 @@ export const DEFAULT_MODULE_OPTIONS = [
   { tag: "Module 4", title: "<no title>" },
   { tag: "Module 5", title: "<no title>" },
   { tag: "Module 6", title: "<no title>" },
+  { tag: "Module 7", title: "<no title>" },
+  { tag: "Module 8", title: "<no title>" },
+  { tag: "Module 9", title: "<no title>" },
+  { tag: "Module 10", title: "<no title>" },
+  { tag: "Module 11", title: "<no title>" },
+  { tag: "Module 12", title: "<no title>" },
 ];
 
 // AUTHENTICATION HELPERS
@@ -73,6 +82,7 @@ export const subscribeToEntries = (activeModule, trainerId, callback) => {
     );
     callback({ 
       entries: filteredEntries, 
+      rawEntries: rawTrainerEntries, // PASSES ALL TRAINER ENTRIES (MODULES 1-12)
       activeModule: currentModule,
       moduleOptions: customModuleOptions
     });
@@ -178,13 +188,16 @@ export const addQuestion = async (questionData) => {
 };
 export const submitEntry = addQuestion;
 
-// Fetch Questions (Filtered by module)
-export const getQuestionsByModule = async (moduleTag) => {
+// Fetch Questions (Filtered by module & trainerId)
+export const getQuestionsByModule = async (trainerId, moduleTag) => {
   try {
-    const q = moduleTag 
-      ? query(questionsCollection, where("module", "==", moduleTag))
-      : questionsCollection;
-      
+    if (!trainerId) return { success: false, error: "Missing trainerId" };
+    
+    let q = query(questionsCollection, where("trainerId", "==", trainerId));
+    if (moduleTag && moduleTag !== "ALL") {
+      q = query(questionsCollection, where("trainerId", "==", trainerId), where("module", "==", moduleTag));
+    }
+
     const querySnapshot = await getDocs(q);
     const questions = querySnapshot.docs.map((docSnap) => ({
       id: docSnap.id,
@@ -270,9 +283,6 @@ export const deleteAllEntriesForModule = async (trainerId, moduleTag) => {
   }
 };
 
-// DEFAULT FALLBACK HEADER TITLE
-export const DEFAULT_HEADER_TITLE = "Trauma Informed - Psychological First Aid Training";
-
 // STANDALONE REAL-TIME LISTENER FOR HEADER TITLE (WITH AUTO-CREATION)
 export const subscribeToHeaderTitle = (trainerId, callback) => {
   if (!trainerId) return () => {};
@@ -307,4 +317,24 @@ export const saveHeaderTitle = async (trainerId, newTitle) => {
     console.error("Error saving header title:", error);
     return { success: false, error };
   }
+};
+
+// REAL-TIME LISTENER FOR ALL MODULE ENTRIES (DIRECT FETCH FOR SHOW ALL MODAL)
+export const subscribeToAllEntries = (trainerId, callback) => {
+  if (!trainerId) return () => {};
+
+  const q = query(
+    questionsCollection, 
+    where("trainerId", "==", trainerId)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const allEntries = snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      docId: docSnap.id,
+      rowId: docSnap.id,
+      ...docSnap.data(),
+    }));
+    callback(allEntries);
+  }, (err) => console.error("Firestore error fetching all entries:", err));
 };

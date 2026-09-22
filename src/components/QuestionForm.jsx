@@ -26,22 +26,22 @@ export default function QuestionForm({
       id: "Question",
       label: "Question",
       icon: HelpCircle,
-      activeColor: "bg-indigo-100 text-indigo-900 border-indigo-600 ring-2 ring-indigo-500",
-      iconColor: "text-indigo-600",
+      activeColor: "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/20",
+      iconColor: "text-white",
     },
     {
       id: "Appreciation",
       label: "Appreciation",
       icon: Heart,
-      activeColor: "bg-pink-100 text-pink-900 border-pink-600 ring-2 ring-pink-500",
-      iconColor: "text-pink-600",
+      activeColor: "bg-red-500 text-white border-red-500 shadow-sm shadow-red-500/20",
+      iconColor: "text-white",
     },
     {
       id: "Concern",
       label: "Concern",
       icon: AlertTriangle,
-      activeColor: "bg-amber-100 text-amber-900 border-amber-600 ring-2 ring-amber-500",
-      iconColor: "text-amber-600",
+      activeColor: "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20",
+      iconColor: "text-white",
     },
   ];
 
@@ -106,18 +106,21 @@ export default function QuestionForm({
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         onSubmit={handleSubmit}
-        className="bg-white border-2 border-black p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,0.9)] space-y-4 text-black flex flex-col justify-between flex-1 min-h-0 relative z-10"
+        className="bg-white/95 border border-slate-200/80 p-4 sm:p-5 rounded-2xl shadow-sm space-y-4 text-slate-800 flex flex-col justify-between flex-1 min-h-0 relative z-10 backdrop-blur-md overflow-hidden"
       >
+        {/* Top Gradient Accent Bar */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-red-500" />
+
         <div className="flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {/* Header */}
-          <div className="border-b-2 border-black/10 pb-3 mb-3 flex items-center justify-between shrink-0">
+          <div className="border-b border-slate-100 pb-3.5 mb-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-[#417dc1] border border-black rounded-lg shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-                <MessageSquarePlus className="w-5 h-5 text-white" />
+              <div className="p-2 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 shrink-0">
+                <MessageSquarePlus className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-black text-black leading-tight">Submit a Thought</h2>
-                <p className="text-xs text-gray-600 font-bold">Ask questions or share reflections</p>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight">Submit a Thought</h2>
+                <p className="text-xs text-slate-500 font-medium">Ask questions or share reflections</p>
               </div>
             </div>
 
@@ -126,7 +129,7 @@ export default function QuestionForm({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 border border-black cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="lg:hidden p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 border border-slate-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Close form"
               >
                 <X className="w-5 h-5" />
@@ -136,20 +139,20 @@ export default function QuestionForm({
 
           {/* Warning notice when no trainer is logged in */}
           {!isTrainerActive && (
-            <div className="mb-3 p-2.5 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-center gap-2 text-amber-900 shrink-0">
-              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-              <p className="text-xs font-bold leading-tight">
+            <div className="mb-3.5 p-3 bg-red-50/80 border border-red-200/80 rounded-xl flex items-center gap-2.5 text-red-700 shrink-0 shadow-2xs">
+              <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-xs font-semibold leading-tight">
                 No active trainer session. Submissions are temporarily paused.
               </p>
             </div>
           )}
 
           {/* Form Fields Container */}
-          <div className="space-y-3.5 flex flex-col flex-1">
+          <div className="space-y-4 flex flex-col flex-1">
             {/* Name Input */}
             <div className="space-y-1.5 shrink-0">
-              <label className="text-sm font-black text-gray-900 flex items-center gap-2">
-                <User className="w-4 h-4 text-[#417dc1]" /> Name <span className="text-gray-500 font-bold text-xs">(Optional)</span>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-blue-600" /> Name <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
               <input
                 type="text"
@@ -157,14 +160,14 @@ export default function QuestionForm({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isSubmitting || !isTrainerActive}
-                className="w-full px-3 py-2 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-3.5 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
             </div>
 
             {/* Entry Category Buttons */}
             <div className="space-y-1.5 shrink-0">
-              <label className="text-sm font-black text-gray-900 flex items-center gap-2">
-                <Tag className="w-4 h-4 text-[#417dc1]" /> Entry Category
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-blue-600" /> Entry Category
               </label>
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -178,13 +181,13 @@ export default function QuestionForm({
                       type="button"
                       onClick={() => setType(cat.id)}
                       disabled={isSubmitting || !isTrainerActive}
-                      className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl border-2 font-black text-xs sm:text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
                         isSelected
-                          ? `${cat.activeColor} shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] translate-y-[-1px]`
-                          : "bg-[#FFFDF9] border-black/30 text-gray-700 hover:border-black/60 hover:bg-gray-50"
+                          ? cat.activeColor
+                          : "bg-slate-50/80 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                       }`}
                     >
-                      <Icon className={`w-4 h-4 shrink-0 ${isSelected ? cat.iconColor : "text-gray-500"}`} />
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? cat.iconColor : "text-slate-400"}`} />
                       <span className="truncate">{cat.label}</span>
                     </button>
                   );
@@ -194,8 +197,8 @@ export default function QuestionForm({
 
             {/* Message Input */}
             <div className="space-y-1.5 flex flex-col flex-1 min-h-[120px]">
-              <label className="text-sm font-black text-gray-900 flex items-center gap-2 shrink-0">
-                <HelpCircle className="w-4 h-4 text-[#417dc1]" /> Your Message
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+                <HelpCircle className="w-3.5 h-3.5 text-blue-600" /> Your Message
               </label>
               <textarea
                 placeholder={isTrainerActive ? "Write your thought, question, or appreciation..." : "Submissions are disabled until a trainer logs in."}
@@ -203,7 +206,7 @@ export default function QuestionForm({
                 onChange={(e) => setContent(e.target.value)}
                 required
                 disabled={isSubmitting || !isTrainerActive}
-                className="w-full p-3 bg-[#FFFDF9] border-2 border-black/80 rounded-xl text-sm sm:text-base font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#6DA0DC] resize-none transition-all flex-1 h-full disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full p-3 bg-slate-50/80 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none transition-all flex-1 h-full disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -215,11 +218,11 @@ export default function QuestionForm({
           whileTap={isSubmitting || !isTrainerActive ? {} : { scale: 0.98 }}
           type="submit"
           disabled={isSubmitting || !content.trim() || !isTrainerActive}
-          className="w-full inline-flex items-center justify-center gap-2 bg-[#417dc1] hover:bg-[#6DA0DC] text-white font-black py-3 px-4 rounded-xl border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-3 text-sm sm:text-base shrink-0"
+          className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed mt-3 text-sm shrink-0"
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
               Sending...
             </>
           ) : !isTrainerActive ? (
