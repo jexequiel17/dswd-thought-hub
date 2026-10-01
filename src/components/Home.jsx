@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { motion } from "motion/react";
-import { Shield, LogIn, UserPlus } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { LogIn, UserPlus } from "lucide-react";
 import { loginTrainer, signUpTrainer } from "../services/firebase";
 import daLogo from "../assets/DALogo.png";
 
@@ -40,55 +40,83 @@ export default function Home() {
       <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-blue-950/70 to-slate-900/80 backdrop-blur-md pointer-events-none" />
 
       <motion.div 
-        initial={{ scale: 0.95, opacity: 0, y: 10 }} 
+        initial={{ scale: 0.95, opacity: 0, y: 15 }} 
         animate={{ scale: 1, opacity: 1, y: 0 }} 
+        transition={{ type: "spring", stiffness: 260, damping: 25 }}
         className="relative z-10 bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl shadow-slate-950/30 overflow-hidden"
       >
         {/* Decorative Gradient Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600" />
 
+        {/* Logo and Header */}
         <div className="text-center mb-6 mt-2">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 p-1">
-  <img 
-    src={daLogo} 
-    alt="DA Logo" 
-    className="w-full h-full object-contain scale-200"
-  />
-</div>
+            <img
+              src={daLogo}
+              alt="DA Logo"
+              className="w-full h-full object-contain scale-200"
+            />
+          </div>
           <h2 className="font-extrabold text-xl text-slate-800 tracking-wide">
             Thought Hub
           </h2>
-          <p className="text-xs text-slate-500 font-medium mt-1">
-            Sign in to access the Trainer Control Panel
-          </p>
+
+          <div className="h-6 overflow-hidden relative mt-1">
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={authMode}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="text-xs text-slate-500 font-medium"
+              >
+                {authMode === "login"
+                  ? "Sign in to access the Trainer Control Panel"
+                  : "Create an account to start managing modules"}
+              </motion.p>
+            </AnimatePresence>
+          </div>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="grid grid-cols-2 gap-1 bg-slate-100/80 p-1 rounded-2xl mb-6 border border-slate-200/50">
+        {/* Animated Pill Switcher */}
+        <div className="grid grid-cols-2 gap-1 bg-slate-100/80 p-1 rounded-2xl mb-6 border border-slate-200/50 relative">
           <button
             type="button"
             onClick={() => { setAuthMode("login"); setAuthError(""); }}
-            className={`py-2.5 font-bold text-xs rounded-xl transition-all cursor-pointer ${
-              authMode === "login"
-                ? "bg-white text-blue-700 shadow-sm border border-slate-200/60"
-                : "text-slate-500 hover:text-slate-800"
+            className={`relative py-2.5 font-bold text-xs rounded-xl transition-colors cursor-pointer z-10 ${
+              authMode === "login" ? "text-blue-700" : "text-slate-500 hover:text-slate-800"
             }`}
           >
+            {authMode === "login" && (
+              <motion.div
+                layoutId="activeTabPill"
+                className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60 -z-10"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
             Log In
           </button>
+
           <button
             type="button"
             onClick={() => { setAuthMode("signup"); setAuthError(""); }}
-            className={`py-2.5 font-bold text-xs rounded-xl transition-all cursor-pointer ${
-              authMode === "signup"
-                ? "bg-white text-blue-700 shadow-sm border border-slate-200/60"
-                : "text-slate-500 hover:text-slate-800"
+            className={`relative py-2.5 font-bold text-xs rounded-xl transition-colors cursor-pointer z-10 ${
+              authMode === "signup" ? "text-blue-700" : "text-slate-500 hover:text-slate-800"
             }`}
           >
+            {authMode === "signup" && (
+              <motion.div
+                layoutId="activeTabPill"
+                className="absolute inset-0 bg-white rounded-xl shadow-sm border border-slate-200/60 -z-10"
+                transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              />
+            )}
             Sign Up
           </button>
         </div>
 
+        {/* Form Controls */}
         <form onSubmit={handleAuthSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase mb-1.5 text-slate-600 tracking-wide">
@@ -118,29 +146,59 @@ export default function Home() {
             />
           </div>
 
-          {authError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 text-xs font-semibold text-rose-600">
-              {authError}
-            </div>
-          )}
+          {/* Animated Error Box */}
+          <AnimatePresence>
+            {authError && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0, y: -5 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -5 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 text-xs font-semibold text-rose-600">
+                  {authError}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <button 
+          {/* Animated Submit Button */}
+          <motion.button 
             type="submit" 
             disabled={authLoading}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
             className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 disabled:opacity-50 transition-all cursor-pointer mt-2 flex items-center justify-center gap-2 active:scale-[0.98]"
           >
-            {authMode === "login" ? (
-              <>
-                <LogIn className="w-4 h-4" />
-                {authLoading ? "Logging in..." : "Log In"}
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4" />
-                {authLoading ? "Registering..." : "Create Account"}
-              </>
-            )}
-          </button>
+            <AnimatePresence mode="wait">
+              {authMode === "login" ? (
+                <motion.span 
+                  key="login-btn"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex items-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  {authLoading ? "Logging in..." : "Log In"}
+                </motion.span>
+              ) : (
+                <motion.span 
+                  key="signup-btn"
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  {authLoading ? "Registering..." : "Create Account"}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
         </form>
       </motion.div>
     </div>
