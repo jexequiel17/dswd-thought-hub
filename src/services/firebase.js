@@ -4,7 +4,8 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { 
   getFirestore, 
@@ -59,6 +60,9 @@ export const signUpTrainer = (email, password) =>
 
 export const loginTrainer = (email, password) => 
   signInWithEmailAndPassword(auth, email, password);
+
+export const resetTrainerPassword = (email) => 
+  sendPasswordResetEmail(auth, email);
 
 export const logoutTrainer = () => 
   signOut(auth);
