@@ -73,7 +73,7 @@ export default function Home() {
               >
                 {authMode === "login"
                   ? "Sign in to access the Trainer Control Panel"
-                  : "Create an account to start managing modules"}
+                  : "Create an account to start managing training"}
               </motion.p>
             </AnimatePresence>
           </div>
