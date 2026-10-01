@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { Shield, LogIn, UserPlus } from "lucide-react";
 import { loginTrainer, signUpTrainer } from "../services/firebase";
-import daLogo from "../assets/DA Logo.png";
+import daLogo from "../assets/DALogo.png";
 
 export default function Home() {
   const [authMode, setAuthMode] = useState("login"); // "login" | "signup"
