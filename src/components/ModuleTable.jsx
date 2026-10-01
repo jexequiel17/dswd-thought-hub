@@ -361,34 +361,51 @@ export default function ModuleTable({
         }
       `}</style>
 
-      {/* Header Bar */}
+      {/* Responsive Mobile Header Bar */}
       <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs shrink-0 relative z-30">
-        <div className="p-3 sm:px-4 sm:py-3 flex items-center justify-between gap-2.5 min-w-0">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg shrink-0 flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-blue-600" />
-              All Entries
-            </span>
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate min-w-0 leading-tight">
-              Submitted Questions & Reflections
-            </h2>
-          </div>
+        <div className="p-3 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 min-w-0">
+          
+          {/* Top Header Row (Title & Count Badge) */}
+          <div className="flex items-center justify-between gap-2 min-w-0 w-full sm:w-auto flex-1">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg shrink-0 flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5 text-blue-600" />
+              </span>
+              <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate min-w-0 leading-tight">
+                Submitted Questions & Reflections
+              </h2>
+            </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <span className="text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+            {/* Entry Count Pill (Always on the Right) */}
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg border border-slate-200 whitespace-nowrap shrink-0 ml-auto">
               {visibleEntries.length} of {displayedEntries.length} <span className="hidden sm:inline">Entries</span>
             </span>
-            {isModerator && (
-              <button onClick={handleExportNativeSpreadsheet} className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl cursor-pointer transition-all shadow-2xs flex items-center gap-1 text-xs font-semibold text-slate-700 px-2 sm:px-2.5" title="Export Spreadsheet">
-                <Download className="w-3.5 h-3.5 text-blue-600" /> <span className="hidden sm:inline">Export</span>
-              </button>
-            )}
-            {isModerator && (
-              <button disabled={isDeleting} onClick={handleOpenDeleteModal} className="p-1.5 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl cursor-pointer transition-all flex items-center gap-1 text-xs font-semibold text-red-600 px-2 sm:px-2.5 disabled:opacity-50" title="Delete All Entries">
-                <Trash2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete All"}</span>
-              </button>
-            )}
           </div>
+
+          {/* Moderator Action Buttons (Wraps on Mobile, Inline on Desktop) */}
+          {isModerator && (
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pt-1 sm:pt-0 border-t border-slate-100 sm:border-t-0 justify-end w-full sm:w-auto">
+              <button 
+                onClick={handleExportNativeSpreadsheet} 
+                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl cursor-pointer transition-all shadow-2xs flex items-center gap-1 text-xs font-semibold text-slate-700 px-2 sm:px-2.5" 
+                title="Export Spreadsheet"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-600" />
+                <span>Export</span>
+              </button>
+
+              <button 
+                disabled={isDeleting} 
+                onClick={handleOpenDeleteModal} 
+                className="p-1.5 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl cursor-pointer transition-all flex items-center gap-1 text-xs font-semibold text-red-600 px-2 sm:px-2.5 disabled:opacity-50" 
+                title="Delete All Entries"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? "Deleting..." : "Delete All"}</span>
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -423,7 +440,7 @@ export default function ModuleTable({
                   damping: 24,
                   mass: 0.8
                 }}
-                className={`w-full rounded-2xl sm:rounded-3xl border-2 p-4 sm:p-5 transition-all shadow-sm hover:shadow-md ${
+                className={`w-full rounded-2xl sm:rounded-3xl border-2 p-3.5 sm:p-5 transition-all shadow-sm hover:shadow-md ${
                   isMyEntry 
                     ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30" 
                     : isHidden 
