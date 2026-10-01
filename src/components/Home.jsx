@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { Shield, LogIn, UserPlus } from "lucide-react";
 import { loginTrainer, signUpTrainer } from "../services/firebase";
+import daLogo from "../assets/DA Logo.png";
 
 export default function Home() {
   const [authMode, setAuthMode] = useState("login"); // "login" | "signup"
@@ -47,11 +48,15 @@ export default function Home() {
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-rose-600" />
 
         <div className="text-center mb-6 mt-2">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-3 shadow-sm">
-            <Shield className="w-6 h-6 text-blue-600" />
-          </div>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 p-1">
+  <img 
+    src={daLogo} 
+    alt="DA Logo" 
+    className="w-full h-full object-contain scale-200"
+  />
+</div>
           <h2 className="font-extrabold text-xl text-slate-800 tracking-wide">
-            DSWD Thought Hub
+            Thought Hub
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-1">
             Sign in to access the Trainer Control Panel
