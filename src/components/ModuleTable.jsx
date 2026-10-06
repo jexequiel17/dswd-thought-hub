@@ -18,7 +18,7 @@ import AnswerModal from "./AnswerModal";
 import { deleteAllEntriesForModule, db, auth } from "../services/firebase";
 import { signOut } from "firebase/auth";
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 
 const TYPE_CONFIG = {
   question: { label: "Question", bg: "bg-blue-100 text-blue-700 border-blue-200", icon: HelpCircle },
