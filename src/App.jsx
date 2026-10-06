@@ -179,7 +179,6 @@ export default function App() {
     setIsMobileFormOpen(false);
   };
 
-  // Loading Screen with DSWDBG.webp background
   if (authChecking || !minLoadingTimePassed) {
     return (
       <div 
@@ -200,12 +199,12 @@ export default function App() {
 
   return (
     <div 
-      className="min-h-screen lg:h-screen w-screen overflow-y-auto lg:overflow-hidden bg-cover bg-center bg-fixed relative p-3 sm:p-5 pb-20 lg:pb-6 text-slate-800 flex flex-col font-sans" 
+      className="h-screen max-h-screen w-screen overflow-hidden bg-cover bg-center bg-fixed relative p-2.5 sm:p-5 pb-20 lg:pb-6 text-slate-800 flex flex-col font-sans" 
       style={{ backgroundImage: `url(${dswdBg})` }}
     >
       <div className="fixed inset-0 bg-gradient-to-br from-slate-950/80 via-blue-950/70 to-slate-900/80 backdrop-blur-md pointer-events-none" />
 
-      <div className="relative z-10 max-w-[1500px] w-full mx-auto flex flex-col h-full space-y-3">
+      <div className="relative z-10 max-w-[1500px] w-full mx-auto flex flex-col h-full space-y-3 min-h-0 flex-1">
         <Header 
           onOpenGuidelines={() => setShowGuidelines(true)}
           isModerator={isModerator}
@@ -255,7 +254,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch flex-1 min-h-0 overflow-hidden">
           <aside className="hidden lg:flex lg:col-span-4 flex-col gap-3 h-full">
             <QuestionForm 
               onSubmitEntry={handleAddEntry} 
@@ -266,7 +265,7 @@ export default function App() {
             />
           </aside>
 
-          <main className="col-span-1 lg:col-span-8 h-full min-h-0">
+          <main className="col-span-1 lg:col-span-8 h-full min-h-0 flex flex-col overflow-hidden">
             <ModuleTable 
               entries={entries}
               activeModule={activeModule} 
