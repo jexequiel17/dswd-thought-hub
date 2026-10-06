@@ -15,26 +15,10 @@ import {
   Layers
 } from "lucide-react";
 import AnswerModal from "./AnswerModal";
-import { deleteAllEntriesForModule, db, saveModuleOptions, auth } from "../services/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { deleteAllEntriesForModule, db, auth } from "../services/firebase";
 import { signOut } from "firebase/auth";
 
 const BATCH_SIZE = 10;
-
-const DEFAULT_MODULE_OPTIONS = [
-  { tag: "Module 1", title: "<no title>" },
-  { tag: "Module 2", title: "<no title>" },
-  { tag: "Module 3", title: "<no title>" },
-  { tag: "Module 4", title: "<no title>" },
-  { tag: "Module 5", title: "<no title>" },
-  { tag: "Module 6", title: "<no title>" },
-  { tag: "Module 7", title: "<no title>" },
-  { tag: "Module 8", title: "<no title>" },
-  { tag: "Module 9", title: "<no title>" },
-  { tag: "Module 10", title: "<no title>" },
-  { tag: "Module 11", title: "<no title>" },
-  { tag: "Module 12", title: "<no title>" },
-];
 
 const TYPE_CONFIG = {
   question: { label: "Question", bg: "bg-blue-100 text-blue-700 border-blue-200", icon: HelpCircle },
@@ -44,22 +28,11 @@ const TYPE_CONFIG = {
 
 export const handleTrainerLogout = async () => {
   try {
-    const currentUid = auth?.currentUser?.uid || localStorage.getItem("currentTrainerId");
-
-    if (currentUid) {
-      await saveModuleOptions(currentUid, DEFAULT_MODULE_OPTIONS);
-    }
-
-    if (typeof window !== "undefined") {
-      localStorage.clear();
-    }
-
     await signOut(auth);
     window.location.href = window.location.origin + window.location.pathname;
     window.location.reload();
   } catch (error) {
     console.error("Logout failed:", error);
-    localStorage.clear();
     window.location.href = window.location.origin + window.location.pathname;
     window.location.reload();
   }
@@ -156,6 +129,7 @@ function DeleteConfirmationModal({ isOpen, onClose, onConfirm, isDeleting }) {
 export default function ModuleTable({ 
   entries = [], 
   activeModule = "Module 1", 
+  activeTrainingId = "",
   trainerId = "",
   isModerator = false, 
   onToggleHideEntry,
@@ -183,13 +157,7 @@ export default function ModuleTable({
 
   const effectiveTrainerId = getTrainerId();
 
-  const [myMarkedIds, setMyMarkedIds] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("myMarkedEntryIds") || "[]");
-    } catch (e) {
-      return [];
-    }
-  });
+  const [myMarkedIds, setMyMarkedIds] = useState([]);
 
   useEffect(() => {
     setVisibleCount(BATCH_SIZE);
@@ -197,14 +165,11 @@ export default function ModuleTable({
 
   const toggleMyEntryPin = (itemId) => {
     if (!itemId) return;
-    let updated;
     if (myMarkedIds.includes(itemId)) {
-      updated = myMarkedIds.filter(id => id !== itemId);
+      setMyMarkedIds(myMarkedIds.filter(id => id !== itemId));
     } else {
-      updated = [...myMarkedIds, itemId];
+      setMyMarkedIds([...myMarkedIds, itemId]);
     }
-    setMyMarkedIds(updated);
-    localStorage.setItem("myMarkedEntryIds", JSON.stringify(updated));
   };
 
   const handleOpenDeleteModal = () => {
@@ -313,7 +278,13 @@ export default function ModuleTable({
     }
   };
 
-  const rawDisplayedEntries = isModerator ? entries : entries.filter((e) => !e.hidden && e.status !== "HIDDEN");
+  const filteredByTraining = activeTrainingId
+    ? entries.filter((e) => e.trainingId === activeTrainingId)
+    : entries;
+
+  const rawDisplayedEntries = isModerator 
+    ? filteredByTraining 
+    : filteredByTraining.filter((e) => !e.hidden && e.status !== "HIDDEN");
 
   const displayedEntries = [...rawDisplayedEntries].sort((a, b) => {
     const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime());
@@ -334,7 +305,6 @@ export default function ModuleTable({
 
   return (
     <div className="flex flex-col h-full max-h-full space-y-3 min-h-0 bg-slate-50/50 p-2 sm:p-4 rounded-3xl">
-      {/* Scrollbar Customization */}
       <style>{`
         .custom-scrollbar {
           scroll-behavior: smooth;
@@ -361,11 +331,8 @@ export default function ModuleTable({
         }
       `}</style>
 
-      {/* Responsive Mobile Header Bar */}
       <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs shrink-0 relative z-30">
         <div className="p-3 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 min-w-0">
-          
-          {/* Top Header Row (Title & Count Badge) */}
           <div className="flex items-center justify-between gap-2 min-w-0 w-full sm:w-auto flex-1">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg shrink-0 flex items-center gap-1">
@@ -376,13 +343,11 @@ export default function ModuleTable({
               </h2>
             </div>
 
-            {/* Entry Count Pill (Always on the Right) */}
             <span className="text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg border border-slate-200 whitespace-nowrap shrink-0 ml-auto">
               {visibleEntries.length} of {displayedEntries.length} <span className="hidden sm:inline">Entries</span>
             </span>
           </div>
 
-          {/* Moderator Action Buttons (Wraps on Mobile, Inline on Desktop) */}
           {isModerator && (
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pt-1 sm:pt-0 border-t border-slate-100 sm:border-t-0 justify-end w-full sm:w-auto">
               <button 
@@ -405,11 +370,9 @@ export default function ModuleTable({
               </button>
             </div>
           )}
-
         </div>
       </div>
 
-      {/* Scrollable Container with Scroll Animations on Cards */}
       <motion.div 
         layoutScroll
         ref={scrollContainerRef}
@@ -450,7 +413,6 @@ export default function ModuleTable({
                     : "bg-slate-50 border-slate-200/90 hover:border-slate-300"
                 }`}
               >
-                {/* Header Row */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
@@ -475,7 +437,6 @@ export default function ModuleTable({
                     </div>
                   </div>
 
-                  {/* Action Icons */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {!isModerator && (
                       <button 
@@ -520,7 +481,6 @@ export default function ModuleTable({
                   </div>
                 </div>
 
-                {/* Question/Reflection Text */}
                 <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
                   <div>
                     <p className={`text-xs sm:text-sm font-semibold leading-relaxed break-words ${
@@ -530,7 +490,6 @@ export default function ModuleTable({
                     </p>
                   </div>
 
-                  {/* Response Block */}
                   {currentResponse ? (
                     <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2.5 mt-2">
                       <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 mb-0.5">

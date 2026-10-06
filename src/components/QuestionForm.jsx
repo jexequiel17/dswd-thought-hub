@@ -8,6 +8,7 @@ export default function QuestionForm({
   isSubmitting: externalIsSubmitting, 
   onClose,
   trainerId = "",
+  trainingId = "",
   activeModule = "Module 1"
 }) {
   const [name, setName] = useState("");
@@ -15,10 +16,7 @@ export default function QuestionForm({
   const [content, setContent] = useState("");
   const [internalIsSubmitting, setInternalIsSubmitting] = useState(false);
 
-  // FIX 1: Combine boolean flags so internal state works even if parent passes boolean false
   const isSubmitting = Boolean(externalIsSubmitting) || internalIsSubmitting;
-
-  // Check if a trainer session is active
   const isTrainerActive = Boolean(trainerId && trainerId.trim() !== "");
 
   const categories = [
@@ -48,10 +46,8 @@ export default function QuestionForm({
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Prevent execution if no message content, currently submitting, OR no trainer logged in
     if (!content.trim() || isSubmitting || !isTrainerActive) return;
 
-    // Immediately trigger local loading state
     setInternalIsSubmitting(true);
 
     try {
@@ -59,6 +55,7 @@ export default function QuestionForm({
       
       const result = await submitEntry({
         trainerId,
+        trainingId: trainingId || "",
         module: activeModule,
         name: formattedName,
         type,
@@ -71,23 +68,10 @@ export default function QuestionForm({
         throw new Error("Failed to save to Firestore");
       }
 
-      // FIX 2: Add a minimum delay so the loading spinner stays visible
       await new Promise((resolve) => setTimeout(resolve, 600));
 
-      // Local storage history persistence
-      const existingThoughts = JSON.parse(localStorage.getItem("mySubmittedThoughts") || "[]");
-      if (!existingThoughts.includes(content.trim())) {
-        existingThoughts.push(content.trim());
-        localStorage.setItem("mySubmittedThoughts", JSON.stringify(existingThoughts));
-      }
-
-      if (name.trim()) {
-        localStorage.setItem("myParticipantName", name.trim());
-      }
-
-      // Optional callback for parent component updates
       if (onSubmitEntry) {
-        await onSubmitEntry({ name: formattedName, type, content: content.trim(), id: result.id, trainerId, module: activeModule });
+        await onSubmitEntry({ name: formattedName, type, content: content.trim(), id: result.id, trainerId, trainingId, module: activeModule });
       }
 
       setName("");
@@ -108,11 +92,9 @@ export default function QuestionForm({
         onSubmit={handleSubmit}
         className="bg-white/95 border border-slate-200/80 p-4 sm:p-5 rounded-2xl shadow-sm space-y-4 text-slate-800 flex flex-col justify-between flex-1 min-h-0 relative z-10 backdrop-blur-md overflow-hidden"
       >
-        {/* Top Gradient Accent Bar */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-red-500" />
 
         <div className="flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-          {/* Header */}
           <div className="border-b border-slate-100 pb-3.5 mb-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 shrink-0">
@@ -137,7 +119,6 @@ export default function QuestionForm({
             )}
           </div>
 
-          {/* Warning notice when no trainer is logged in */}
           {!isTrainerActive && (
             <div className="mb-3.5 p-3 bg-red-50/80 border border-red-200/80 rounded-xl flex items-center gap-2.5 text-red-700 shrink-0 shadow-2xs">
               <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
@@ -147,9 +128,7 @@ export default function QuestionForm({
             </div>
           )}
 
-          {/* Form Fields Container */}
           <div className="space-y-4 flex flex-col flex-1">
-            {/* Name Input */}
             <div className="space-y-1.5 shrink-0">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-blue-600" /> Name <span className="text-slate-400 font-normal lowercase">(optional)</span>
@@ -164,7 +143,6 @@ export default function QuestionForm({
               />
             </div>
 
-            {/* Entry Category Buttons */}
             <div className="space-y-1.5 shrink-0">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-blue-600" /> Entry Category
@@ -195,7 +173,6 @@ export default function QuestionForm({
               </div>
             </div>
 
-            {/* Message Input */}
             <div className="space-y-1.5 flex flex-col flex-1 min-h-[120px]">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
                 <HelpCircle className="w-3.5 h-3.5 text-blue-600" /> Your Message
@@ -212,7 +189,6 @@ export default function QuestionForm({
           </div>
         </div>
 
-        {/* Submit Button */}
         <motion.button
           whileHover={isSubmitting || !isTrainerActive ? {} : { scale: 1.01 }}
           whileTap={isSubmitting || !isTrainerActive ? {} : { scale: 0.98 }}

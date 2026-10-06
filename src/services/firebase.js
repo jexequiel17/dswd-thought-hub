@@ -38,22 +38,6 @@ export const auth = getAuth(app);
 // DEFAULT FALLBACK HEADER TITLE
 export const DEFAULT_HEADER_TITLE = "Trainer Dashboard";
 
-// DEFAULT FALLBACK MODULE OPTIONS
-export const DEFAULT_MODULE_OPTIONS = [
-  { tag: "Module 1", title: "<no title>" },
-  { tag: "Module 2", title: "<no title>" },
-  { tag: "Module 3", title: "<no title>" },
-  { tag: "Module 4", title: "<no title>" },
-  { tag: "Module 5", title: "<no title>" },
-  { tag: "Module 6", title: "<no title>" },
-  { tag: "Module 7", title: "<no title>" },
-  { tag: "Module 8", title: "<no title>" },
-  { tag: "Module 9", title: "<no title>" },
-  { tag: "Module 10", title: "<no title>" },
-  { tag: "Module 11", title: "<no title>" },
-  { tag: "Module 12", title: "<no title>" },
-];
-
 // AUTHENTICATION HELPERS
 export const signUpTrainer = (email, password) => 
   createUserWithEmailAndPassword(auth, email, password);
@@ -72,31 +56,44 @@ export const subscribeToAuthChanges = (callback) =>
 
 const questionsCollection = collection(db, "questions");
 
-// Real-Time Entries, Active Module, & Module Options Listener
-export const subscribeToEntries = (activeModule, trainerId, callback) => {
+// REAL-TIME LISTENER UPDATED TO SUPPORT STRICT TRAINING ISOLATION
+export const subscribeToEntries = (activeModule, trainerId, trainingId, callback) => {
   if (!trainerId) return () => {};
 
   let rawTrainerEntries = [];
   let currentModule = activeModule;
-  let customModuleOptions = null;
+  let currentTrainingId = trainingId;
 
   const emit = () => {
-    const filteredEntries = rawTrainerEntries.filter(
-      (item) => item.module === currentModule
+    const filteredEntries = rawTrainerEntries.filter((item) => {
+      const matchModule = item.module === currentModule;
+      
+      const matchTraining = currentTrainingId 
+        ? item.trainingId === currentTrainingId 
+        : (!item.trainingId || item.trainingId === "");
+
+      return matchModule && matchTraining;
+    });
+
+    const rawFiltered = rawTrainerEntries.filter((item) => 
+      currentTrainingId 
+        ? item.trainingId === currentTrainingId 
+        : (!item.trainingId || item.trainingId === "")
     );
+
     callback({ 
       entries: filteredEntries, 
-      rawEntries: rawTrainerEntries, // PASSES ALL TRAINER ENTRIES (MODULES 1-12)
+      rawEntries: rawFiltered,
       activeModule: currentModule,
-      moduleOptions: customModuleOptions
+      activeTrainingId: currentTrainingId
     });
   };
 
-  // 1. Listen to Questions
   const q = query(
     questionsCollection, 
     where("trainerId", "==", trainerId)
   );
+  
   const unsubQuestions = onSnapshot(q, (snapshot) => {
     rawTrainerEntries = snapshot.docs.map((docSnap) => ({
       id: docSnap.id,
@@ -107,72 +104,31 @@ export const subscribeToEntries = (activeModule, trainerId, callback) => {
     emit();
   }, (err) => console.error("Firestore questions error:", err));
 
-  // 2. Listen to Active Module Setting
   const trainerConfigRef = doc(db, "trainers", trainerId);
   const unsubConfig = onSnapshot(trainerConfigRef, (configSnap) => {
-    if (configSnap.exists() && configSnap.data().activeModule) {
-      currentModule = configSnap.data().activeModule;
-      emit();
+    if (configSnap.exists()) {
+      const data = configSnap.data();
+      let updated = false;
+
+      if (data.activeModule && data.activeModule !== currentModule) {
+        currentModule = data.activeModule;
+        updated = true;
+      }
+
+      // Automatically sync activeTrainingId set by trainer to participants
+      if (data.activeTrainingId !== undefined && data.activeTrainingId !== currentTrainingId) {
+        currentTrainingId = data.activeTrainingId;
+        updated = true;
+      }
+
+      if (updated) emit();
     }
   }, (err) => console.error("Firestore trainer config error:", err));
-
-  // 3. Listen to Module Titles / Options Setting (Auto-creates document if missing)
-  const modulesRef = doc(db, "trainers", trainerId, "settings", "modules");
-  const unsubModules = onSnapshot(modulesRef, async (modulesSnap) => {
-    if (modulesSnap.exists() && Array.isArray(modulesSnap.data()?.options)) {
-      customModuleOptions = modulesSnap.data().options;
-      emit();
-    } else {
-      // Auto-initialize defaults in Firestore for new trainers
-      try {
-        await setDoc(modulesRef, { options: DEFAULT_MODULE_OPTIONS }, { merge: true });
-      } catch (err) {
-        console.error("Failed to seed default module settings:", err);
-      }
-    }
-  }, (err) => console.error("Firestore module options error:", err));
 
   return () => {
     unsubQuestions();
     unsubConfig();
-    unsubModules();
   };
-};
-
-// STANDALONE REAL-TIME LISTENER FOR MODULE OPTIONS (WITH AUTO-CREATION)
-export const subscribeToModuleOptions = (trainerId, callback) => {
-  if (!trainerId) return () => {};
-
-  const modulesRef = doc(db, "trainers", trainerId, "settings", "modules");
-  return onSnapshot(
-    modulesRef, 
-    async (snapshot) => {
-      if (snapshot.exists() && Array.isArray(snapshot.data()?.options)) {
-        callback(snapshot.data().options);
-      } else {
-        // Auto-initialize defaults in Firestore if no options exist yet
-        try {
-          await setDoc(modulesRef, { options: DEFAULT_MODULE_OPTIONS }, { merge: true });
-        } catch (err) {
-          console.error("Failed to seed default module settings:", err);
-        }
-      }
-    },
-    (err) => console.error("Firestore module options subscription error:", err)
-  );
-};
-
-// SAVE MODULE OPTIONS / EDITED TITLES TO FIRESTORE
-export const saveModuleOptions = async (trainerId, optionsArray) => {
-  if (!trainerId) return { success: false, error: "Missing trainerId" };
-  try {
-    const docRef = doc(db, "trainers", trainerId, "settings", "modules");
-    await setDoc(docRef, { options: optionsArray }, { merge: true });
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving module options:", error);
-    return { success: false, error };
-  }
 };
 
 // Add / Submit Question
@@ -249,12 +205,15 @@ export const toggleHideQuestion = async (id, isHidden) => {
 };
 export const toggleHideEntry = async ({ rowId, shouldHide }) => toggleHideQuestion(rowId, shouldHide);
 
-// Update Active Module per Trainer ID
-export const updateActiveModule = async (trainerId, newModule) => {
+// Update Active Module & Active Training per Trainer ID
+export const updateActiveModule = async (trainerId, newModule, activeTrainingId = "") => {
   if (!trainerId) return;
   try {
     const trainerConfigRef = doc(db, "trainers", trainerId);
-    await setDoc(trainerConfigRef, { activeModule: newModule }, { merge: true });
+    await setDoc(trainerConfigRef, { 
+      activeModule: newModule,
+      activeTrainingId: activeTrainingId || ""
+    }, { merge: true });
     return { success: true };
   } catch (error) {
     console.error("Error updating active module:", error);
@@ -298,7 +257,6 @@ export const subscribeToHeaderTitle = (trainerId, callback) => {
       if (snapshot.exists() && snapshot.data()?.title) {
         callback(snapshot.data().title);
       } else {
-        // Auto-initialize default title in Firestore if none exists yet
         try {
           await setDoc(headerRef, { title: DEFAULT_HEADER_TITLE }, { merge: true });
         } catch (err) {

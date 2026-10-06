@@ -2,7 +2,9 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { LogIn, UserPlus, KeyRound, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { loginTrainer, signUpTrainer, resetTrainerPassword } from "../services/firebase";
+import IconSpinner from "./IconSpinner";
 import daLogo from "../assets/DALogo.png";
+import dswdBg from "../assets/DSWDBG.webp";
 
 export default function Home() {
   const [authMode, setAuthMode] = useState("login"); // "login" | "signup" | "forgot"
@@ -30,10 +32,10 @@ export default function Home() {
       } else if (authMode === "forgot") {
         await resetTrainerPassword(email);
         setAuthSuccess("Password reset link sent! Please check your email inbox.");
+        setAuthLoading(false);
       }
     } catch (err) {
       setAuthError(err.message.replace("Firebase: ", ""));
-    } finally {
       setAuthLoading(false);
     }
   };
@@ -44,10 +46,28 @@ export default function Home() {
     setAuthSuccess("");
   };
 
+  // Full page loading overlay when trainer authenticates
+  if (authLoading && authMode !== "forgot") {
+    return (
+      <div 
+        className="h-screen w-screen relative flex flex-col items-center justify-center bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${dswdBg})` }}
+      >
+        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md" />
+        <div className="relative z-10 flex flex-col items-center justify-center gap-3">
+          <IconSpinner className="w-10 h-10 text-white" />
+          <span className="text-white/80 text-xs font-semibold tracking-wider uppercase animate-pulse">
+            {authMode === "login" ? "Logging in..." : "Creating Account..."}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="h-screen w-screen overflow-hidden bg-cover bg-center bg-fixed relative flex items-center justify-center p-4 font-sans text-slate-800"
-      style={{ backgroundImage: `url('https://academy.dswd.gov.ph/wp-content/uploads/2025/03/A1-1024x538.jpg')` }}
+      style={{ backgroundImage: `url(${dswdBg})` }}
     >
       {/* Modern Gradient Backdrop Overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-blue-950/70 to-slate-900/80 backdrop-blur-md pointer-events-none" />
