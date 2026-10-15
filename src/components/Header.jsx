@@ -1,10 +1,109 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkles, HeartHandshake, Info, Pencil, Check, X, FileText, Plus, FolderSync, ChevronDown } from "lucide-react";
+import { Sparkles, HeartHandshake, Info, Pencil, Check, X, FileText, Plus, FolderSync, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
 import { doc, onSnapshot, setDoc, collection, addDoc } from "firebase/firestore";
-import { db, auth } from "../services/firebase";
+import { db, auth, deleteTrainingSession } from "../services/firebase";
 
 const DEFAULT_HEADER_TITLE = "Trainer Dashboard";
+
+// Training Delete Confirmation Modal Component
+function DeleteTrainingModal({ isOpen, trainingTitle, onClose, onConfirm, isDeleting }) {
+  const [confirmInput, setConfirmInput] = useState("");
+
+  useEffect(() => {
+    if (isOpen) setConfirmInput("");
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const isMatched = confirmInput.trim().toLowerCase() === "delete";
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isMatched && !isDeleting) {
+      onConfirm();
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md"
+        onClick={onClose}
+      >
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          className="w-full max-w-md bg-white border border-slate-100 rounded-3xl shadow-2xl p-5 relative overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 via-red-600 to-amber-500" />
+
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 mt-1">
+            <div className="flex items-center gap-2 text-rose-600 font-bold text-sm tracking-wider uppercase">
+              <div className="w-7 h-7 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center">
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
+              </div>
+              <span>Delete Training Title</span>
+            </div>
+            <button 
+              type="button"
+              onClick={onClose}
+              disabled={isDeleting}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-slate-200/60 flex items-center justify-center transition-colors cursor-pointer text-slate-500"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-xs sm:text-sm font-medium text-slate-600 leading-relaxed">
+              Are you sure you want to delete <strong className="text-slate-900 font-bold">&quot;{trainingTitle}&quot;</strong>?
+              <span className="block mt-1 text-rose-600 font-bold">
+                ⚠️ All submitted questions, reflections, and responses under this training will also be permanently deleted.
+              </span>
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Type <span className="text-rose-600 font-bold">&quot;delete&quot;</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={confirmInput}
+                onChange={(e) => setConfirmInput(e.target.value)}
+                placeholder="delete"
+                disabled={isDeleting}
+                autoFocus
+                className="w-full px-3.5 py-2 text-sm font-medium bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all placeholder:text-slate-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!isMatched || isDeleting}
+                className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:shadow-none disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? "Deleting..." : "Delete Training"}</span>
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
 
 export default function Header({ 
   onOpenGuidelines, 
@@ -44,6 +143,10 @@ export default function Header({
   const [showAddTrainingModal, setShowAddTrainingModal] = useState(false);
   const [newTrainingTitle, setNewTrainingTitle] = useState("");
   const [isCreatingTraining, setIsCreatingTraining] = useState(false);
+
+  // Training Delete Modal State
+  const [trainingToDelete, setTrainingToDelete] = useState(null);
+  const [isDeletingTraining, setIsDeletingTraining] = useState(false);
 
   // Handle clicking outside the custom dropdown to close it
   useEffect(() => {
@@ -186,6 +289,27 @@ export default function Header({
     }
   };
 
+  const handleConfirmDeleteTraining = async () => {
+    if (!trainingToDelete || !effectiveTrainerId) return;
+
+    setIsDeletingTraining(true);
+    try {
+      await deleteTrainingSession(effectiveTrainerId, trainingToDelete.id);
+
+      // If deleted active training, reset selection back to default
+      if (activeTrainingId === trainingToDelete.id) {
+        if (onSelectTraining) onSelectTraining("");
+        setHeaderTitle(DEFAULT_HEADER_TITLE);
+      }
+
+      setTrainingToDelete(null);
+    } catch (error) {
+      console.error("Error deleting training session:", error);
+    } finally {
+      setIsDeletingTraining(false);
+    }
+  };
+
   const handleTitleClick = () => {
     if (isTrainerAuthenticated) {
       setTitleInput(headerTitle);
@@ -295,39 +419,64 @@ export default function Header({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 6, scale: 0.96 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute right-0 z-50 mt-2 w-60 max-h-60 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-1.5 space-y-1"
+                        className="absolute right-0 z-50 mt-2 w-64 rounded-2xl bg-white border border-slate-200 shadow-2xl p-1.5 space-y-1 overflow-hidden"
                       >
-                        <button
-                          type="button"
-                          onClick={() => handleSelectTrainingOption("", "")}
-                          className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                            !activeTrainingId 
-                              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs" 
-                              : "text-slate-700 hover:bg-blue-50/80 hover:text-blue-600"
-                          }`}
-                        >
-                          <span className="truncate">Default Training Session</span>
-                          {!activeTrainingId && <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0 ml-2" />}
-                        </button>
+                        <div className="max-h-60 overflow-y-auto overflow-x-hidden space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectTrainingOption("", "")}
+                            title="Default Training Session"
+                            className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                              !activeTrainingId 
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs" 
+                                : "text-slate-700 hover:bg-blue-50/80 hover:text-blue-600"
+                            }`}
+                          >
+                            <span className="truncate">Default Training Session</span>
+                            {!activeTrainingId && <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0 ml-2" />}
+                          </button>
 
-                        {trainingsList.map((t) => {
-                          const isSelected = activeTrainingId === t.id;
-                          return (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={() => handleSelectTrainingOption(t.id, t.title)}
-                              className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                                isSelected 
-                                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs" 
-                                  : "text-slate-700 hover:bg-blue-50/80 hover:text-blue-600"
-                              }`}
-                            >
-                              <span className="truncate">{t.title}</span>
-                              {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0 ml-2" />}
-                            </button>
-                          );
-                        })}
+                          {trainingsList.map((t) => {
+                            const isSelected = activeTrainingId === t.id;
+                            return (
+                              <div 
+                                key={t.id} 
+                                className={`group/item relative flex items-center justify-between px-3 py-1.5 rounded-xl transition-all ${
+                                  isSelected 
+                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs" 
+                                    : "hover:bg-blue-50/80 text-slate-700"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectTrainingOption(t.id, t.title)}
+                                  title={t.title}
+                                  className="flex-1 flex items-center justify-between text-left text-xs font-bold truncate pr-2 cursor-pointer min-w-0"
+                                >
+                                  <span className="truncate">{t.title}</span>
+                                  {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0 ml-2" />}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsDropdownOpen(false);
+                                    setTrainingToDelete(t);
+                                  }}
+                                  className={`p-1 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                                    isSelected 
+                                      ? "hover:bg-white/20 text-white/80 hover:text-white" 
+                                      : "hover:bg-rose-100 text-slate-400 hover:text-rose-600"
+                                  }`}
+                                  title="Delete training title and entries"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -362,7 +511,16 @@ export default function Header({
         </div>
       </motion.header>
 
-      {/* Modals keep original implementations */}
+      {/* Delete Training Confirmation Modal */}
+      <DeleteTrainingModal 
+        isOpen={Boolean(trainingToDelete)}
+        trainingTitle={trainingToDelete?.title || ""}
+        onClose={() => setTrainingToDelete(null)}
+        onConfirm={handleConfirmDeleteTraining}
+        isDeleting={isDeletingTraining}
+      />
+
+      {/* Add Training Modal */}
       <AnimatePresence>
         {showAddTrainingModal && (
           <div 
@@ -460,7 +618,7 @@ export default function Header({
                 </button>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 max-h-[60vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <h2 className="text-base sm:text-xl font-extrabold text-blue-950 leading-relaxed break-words">
                   {headerTitle}
                 </h2>

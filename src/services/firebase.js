@@ -300,3 +300,47 @@ export const subscribeToAllEntries = (trainerId, callback) => {
     callback(allEntries);
   }, (err) => console.error("Firestore error fetching all entries:", err));
 };
+
+// Delete Training Document and All Associated Questions/Entries
+export const deleteTrainingSession = async (trainerId, trainingId) => {
+  if (!trainerId || !trainingId) {
+    return { success: false, error: "Missing trainer ID or training ID" };
+  }
+
+  try {
+    const batch = writeBatch(db);
+
+    // 1. Get all questions belonging to this trainer and training
+    const q = query(
+      questionsCollection,
+      where("trainerId", "==", trainerId),
+      where("trainingId", "==", trainingId)
+    );
+    const snapshot = await getDocs(q);
+
+    // Add each question doc delete operation to the batch
+    snapshot.docs.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
+    });
+
+    // 2. Add the training document delete operation to the batch
+    const trainingDocRef = doc(db, "trainers", trainerId, "trainings", trainingId);
+    batch.delete(trainingDocRef);
+
+    // 3. Reset activeTrainingId if the trainer was currently viewing this deleted training
+    const trainerRef = doc(db, "trainers", trainerId);
+    batch.set(trainerRef, { activeTrainingId: "" }, { merge: true });
+
+    // 4. Reset header title setting back to DEFAULT_HEADER_TITLE
+    const headerRef = doc(db, "trainers", trainerId, "settings", "header");
+    batch.set(headerRef, { title: DEFAULT_HEADER_TITLE }, { merge: true });
+
+    // Commit all deletions atomically
+    await batch.commit();
+
+    return { success: true, count: snapshot.size };
+  } catch (error) {
+    console.error("Error deleting training session and associated entries:", error);
+    return { success: false, error };
+  }
+};
