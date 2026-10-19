@@ -96,10 +96,6 @@ export default function App() {
           setAllTrainerEntries(normalizedRawEntries);
         }
 
-        if (data.activeTrainingId !== undefined && data.activeTrainingId !== activeTrainingId) {
-          setActiveTrainingId(data.activeTrainingId);
-        }
-
         if (data.activeModule && data.activeModule !== activeModule) {
           setActiveModule(data.activeModule);
         }

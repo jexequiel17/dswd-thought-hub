@@ -2,11 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Sparkles, HeartHandshake, Info, Pencil, Check, X, FileText, Plus, FolderSync, ChevronDown, Trash2, AlertTriangle } from "lucide-react";
 import { doc, onSnapshot, setDoc, collection, addDoc } from "firebase/firestore";
-import { db, auth, deleteTrainingSession } from "../services/firebase";
+import { db, auth, deleteTrainingSession, subscribeToHeaderTitle } from "../services/firebase";
 
 const DEFAULT_HEADER_TITLE = "Trainer Dashboard";
 
-// Training Delete Confirmation Modal Component
 function DeleteTrainingModal({ isOpen, trainingTitle, onClose, onConfirm, isDeleting }) {
   const [confirmInput, setConfirmInput] = useState("");
 
@@ -135,20 +134,16 @@ export default function Header({
   const [titleInput, setTitleInput] = useState("");
   const [showFullTitleModal, setShowFullTitleModal] = useState(false);
 
-  // Dropdown Open State & Click Outside Listener
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // New Training Modal State
   const [showAddTrainingModal, setShowAddTrainingModal] = useState(false);
   const [newTrainingTitle, setNewTrainingTitle] = useState("");
   const [isCreatingTraining, setIsCreatingTraining] = useState(false);
 
-  // Training Delete Modal State
   const [trainingToDelete, setTrainingToDelete] = useState(null);
   const [isDeletingTraining, setIsDeletingTraining] = useState(false);
 
-  // Handle clicking outside the custom dropdown to close it
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -159,7 +154,6 @@ export default function Header({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch list of trainings for the trainer
   useEffect(() => {
     if (!effectiveTrainerId) return;
 
@@ -175,31 +169,18 @@ export default function Header({
     return () => unsubscribe();
   }, [effectiveTrainerId]);
 
-  // Sync Header Title with Active Training or Setting in Firestore
   useEffect(() => {
     if (!effectiveTrainerId) {
       setHeaderTitle(DEFAULT_HEADER_TITLE);
       return;
     }
 
-    const docRef = doc(db, "trainers", effectiveTrainerId, "settings", "header");
-    const unsubscribe = onSnapshot(
-      docRef,
-      (snapshot) => {
-        if (snapshot.exists() && snapshot.data()?.title) {
-          const remoteTitle = snapshot.data().title;
-          setHeaderTitle(remoteTitle);
-        } else {
-          setHeaderTitle(DEFAULT_HEADER_TITLE);
-        }
-      },
-      (error) => {
-        console.error("Firestore header listener error:", error);
-      }
-    );
+    const unsubscribe = subscribeToHeaderTitle(effectiveTrainerId, activeTrainingId, (title) => {
+      setHeaderTitle(title);
+    });
 
     return () => unsubscribe();
-  }, [effectiveTrainerId]);
+  }, [effectiveTrainerId, activeTrainingId]);
 
   const handleSaveTitle = async (e) => {
     if (e) {
@@ -296,7 +277,6 @@ export default function Header({
     try {
       await deleteTrainingSession(effectiveTrainerId, trainingToDelete.id);
 
-      // If deleted active training, reset selection back to default
       if (activeTrainingId === trainingToDelete.id) {
         if (onSelectTraining) onSelectTraining("");
         setHeaderTitle(DEFAULT_HEADER_TITLE);
@@ -511,7 +491,6 @@ export default function Header({
         </div>
       </motion.header>
 
-      {/* Delete Training Confirmation Modal */}
       <DeleteTrainingModal 
         isOpen={Boolean(trainingToDelete)}
         trainingTitle={trainingToDelete?.title || ""}
@@ -520,7 +499,6 @@ export default function Header({
         isDeleting={isDeletingTraining}
       />
 
-      {/* Add Training Modal */}
       <AnimatePresence>
         {showAddTrainingModal && (
           <div 

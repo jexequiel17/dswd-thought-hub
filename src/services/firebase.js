@@ -19,7 +19,8 @@ import {
   query, 
   where, 
   onSnapshot, 
-  serverTimestamp 
+  serverTimestamp,
+  getDoc
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -56,7 +57,7 @@ export const subscribeToAuthChanges = (callback) =>
 
 const questionsCollection = collection(db, "questions");
 
-// REAL-TIME LISTENER UPDATED TO SUPPORT STRICT TRAINING ISOLATION
+// REAL-TIME LISTENER UPDATED FOR UNIQUE TRAINING LINK ISOLATION
 export const subscribeToEntries = (activeModule, trainerId, trainingId, callback) => {
   if (!trainerId) return () => {};
 
@@ -112,12 +113,6 @@ export const subscribeToEntries = (activeModule, trainerId, trainingId, callback
 
       if (data.activeModule && data.activeModule !== currentModule) {
         currentModule = data.activeModule;
-        updated = true;
-      }
-
-      // Automatically sync activeTrainingId set by trainer to participants
-      if (data.activeTrainingId !== undefined && data.activeTrainingId !== currentTrainingId) {
-        currentTrainingId = data.activeTrainingId;
         updated = true;
       }
 
@@ -246,9 +241,24 @@ export const deleteAllEntriesForModule = async (trainerId, moduleTag) => {
   }
 };
 
-// STANDALONE REAL-TIME LISTENER FOR HEADER TITLE (WITH AUTO-CREATION)
-export const subscribeToHeaderTitle = (trainerId, callback) => {
+// STANDALONE REAL-TIME LISTENER FOR HEADER TITLE (WITH ISOLATED TRAINING SUPPORT)
+export const subscribeToHeaderTitle = (trainerId, trainingId, callback) => {
   if (!trainerId) return () => {};
+
+  if (trainingId) {
+    const trainingRef = doc(db, "trainers", trainerId, "trainings", trainingId);
+    return onSnapshot(
+      trainingRef,
+      (snapshot) => {
+        if (snapshot.exists() && snapshot.data()?.title) {
+          callback(snapshot.data().title);
+        } else {
+          callback(DEFAULT_HEADER_TITLE);
+        }
+      },
+      (err) => console.error("Firestore training title subscription error:", err)
+    );
+  }
 
   const headerRef = doc(db, "trainers", trainerId, "settings", "header");
   return onSnapshot(
@@ -269,11 +279,16 @@ export const subscribeToHeaderTitle = (trainerId, callback) => {
 };
 
 // SAVE HEADER TITLE TO FIRESTORE
-export const saveHeaderTitle = async (trainerId, newTitle) => {
+export const saveHeaderTitle = async (trainerId, newTitle, trainingId = "") => {
   if (!trainerId) return { success: false, error: "Missing trainerId" };
   try {
-    const docRef = doc(db, "trainers", trainerId, "settings", "header");
-    await setDoc(docRef, { title: newTitle.trim() || DEFAULT_HEADER_TITLE }, { merge: true });
+    const formattedTitle = newTitle.trim() || DEFAULT_HEADER_TITLE;
+    if (trainingId) {
+      const trainingRef = doc(db, "trainers", trainerId, "trainings", trainingId);
+      await setDoc(trainingRef, { title: formattedTitle }, { merge: true });
+    }
+    const headerRef = doc(db, "trainers", trainerId, "settings", "header");
+    await setDoc(headerRef, { title: formattedTitle }, { merge: true });
     return { success: true };
   } catch (error) {
     console.error("Error saving header title:", error);
@@ -281,7 +296,7 @@ export const saveHeaderTitle = async (trainerId, newTitle) => {
   }
 };
 
-// REAL-TIME LISTENER FOR ALL MODULE ENTRIES (DIRECT FETCH FOR SHOW ALL MODAL)
+// REAL-TIME LISTENER FOR ALL MODULE ENTRIES
 export const subscribeToAllEntries = (trainerId, callback) => {
   if (!trainerId) return () => {};
 
@@ -310,7 +325,6 @@ export const deleteTrainingSession = async (trainerId, trainingId) => {
   try {
     const batch = writeBatch(db);
 
-    // 1. Get all questions belonging to this trainer and training
     const q = query(
       questionsCollection,
       where("trainerId", "==", trainerId),
@@ -318,24 +332,19 @@ export const deleteTrainingSession = async (trainerId, trainingId) => {
     );
     const snapshot = await getDocs(q);
 
-    // Add each question doc delete operation to the batch
     snapshot.docs.forEach((docSnap) => {
       batch.delete(docSnap.ref);
     });
 
-    // 2. Add the training document delete operation to the batch
     const trainingDocRef = doc(db, "trainers", trainerId, "trainings", trainingId);
     batch.delete(trainingDocRef);
 
-    // 3. Reset activeTrainingId if the trainer was currently viewing this deleted training
     const trainerRef = doc(db, "trainers", trainerId);
     batch.set(trainerRef, { activeTrainingId: "" }, { merge: true });
 
-    // 4. Reset header title setting back to DEFAULT_HEADER_TITLE
     const headerRef = doc(db, "trainers", trainerId, "settings", "header");
     batch.set(headerRef, { title: DEFAULT_HEADER_TITLE }, { merge: true });
 
-    // Commit all deletions atomically
     await batch.commit();
 
     return { success: true, count: snapshot.size };
