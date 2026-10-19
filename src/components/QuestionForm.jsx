@@ -135,10 +135,15 @@ export default function QuestionForm({
 
           <div className="space-y-4 flex flex-col flex-1">
             <div className="space-y-1.5 shrink-0">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <label 
+                htmlFor="participant-name-input"
+                className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5"
+              >
                 <User className="w-3.5 h-3.5 text-blue-600" /> Name <span className="text-slate-400 font-normal lowercase">(optional)</span>
               </label>
               <input
+                id="participant-name-input"
+                name="participantName"
                 type="text"
                 placeholder="e.g. Juan Dela Cruz"
                 value={name}
@@ -149,9 +154,9 @@ export default function QuestionForm({
             </div>
 
             <div className="space-y-1.5 shrink-0">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-blue-600" /> Entry Category
-              </label>
+              </span>
               
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {categories.map((cat) => {
@@ -179,10 +184,15 @@ export default function QuestionForm({
             </div>
 
             <div className="space-y-1.5 flex flex-col flex-1 min-h-[120px]">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+              <label 
+                htmlFor="participant-message-input"
+                className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+              >
                 <HelpCircle className="w-3.5 h-3.5 text-blue-600" /> Your Message
               </label>
               <textarea
+                id="participant-message-input"
+                name="participantMessage"
                 placeholder={isTrainerActive ? "Write your thought, question, or appreciation..." : "Submissions are disabled until a trainer logs in."}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
