@@ -329,6 +329,49 @@ export const subscribeToAllEntries = (trainerId, callback) => {
   }, (err) => console.error("Firestore error fetching all entries:", err));
 };
 
+// VERIFY CO-TRAINER PASSCODE
+export const verifyCoTrainerPasscode = async (trainerId, trainingId, inputPasscode) => {
+  if (!trainerId) return false;
+  try {
+    if (trainingId) {
+      const trainingRef = doc(db, "trainers", trainerId, "trainings", trainingId);
+      const snap = await getDoc(trainingRef);
+      if (snap.exists() && snap.data()?.coTrainerPin) {
+        return snap.data().coTrainerPin.toString() === inputPasscode.toString();
+      }
+    }
+    
+    const trainerRef = doc(db, "trainers", trainerId);
+    const trainerSnap = await getDoc(trainerRef);
+    if (trainerSnap.exists() && trainerSnap.data()?.coTrainerPin) {
+      return trainerSnap.data().coTrainerPin.toString() === inputPasscode.toString();
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Error verifying co-trainer passcode:", error);
+    return false;
+  }
+};
+
+// SET CO-TRAINER PASSCODE FOR A TRAINING
+export const setCoTrainerPasscode = async (trainerId, trainingId, newPin) => {
+  if (!trainerId) return { success: false };
+  try {
+    if (trainingId) {
+      const trainingRef = doc(db, "trainers", trainerId, "trainings", trainingId);
+      await setDoc(trainingRef, { coTrainerPin: newPin }, { merge: true });
+    } else {
+      const trainerRef = doc(db, "trainers", trainerId);
+      await setDoc(trainerRef, { coTrainerPin: newPin }, { merge: true });
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Error setting co-trainer passcode:", error);
+    return { success: false, error };
+  }
+};
+
 // Delete Training Document and All Associated Questions/Entries
 export const deleteTrainingSession = async (trainerId, trainingId) => {
   if (!trainerId || !trainingId) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Shield, LogOut, Copy, Check, MessageSquarePlus, X, HeartHandshake, Info } from "lucide-react"; 
+import { Shield, LogOut, Copy, Check, MessageSquarePlus, X, HeartHandshake, Info, Users, KeyRound } from "lucide-react"; 
 import Home from "./components/Home";
 import Header from "./components/Header";
 import QuestionForm from "./components/QuestionForm";
@@ -13,7 +13,10 @@ import {
   toggleHideEntry,
   saveAnswerEntry,
   logoutTrainer,
-  subscribeToAuthChanges
+  subscribeToAuthChanges,
+  verifyCoTrainerPasscode,
+  subscribeToHeaderTitle,
+  DEFAULT_HEADER_TITLE
 } from "./services/firebase";
 import "./App.css";
 
@@ -41,22 +44,29 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [minLoadingTimePassed, setMinLoadingTimePassed] = useState(false);
   const [, setAllTrainerEntries] = useState([]);
-  const isModerator = Boolean(user);
+
+  const [isCoTrainerSession, setIsCoTrainerSession] = useState(() => {
+    return sessionStorage.getItem("coTrainerVerified") === "true";
+  });
+
+  const isModerator = Boolean(user) || isCoTrainerSession;
 
   const activeTrainerId = user ? user.uid : urlTrainerId;
   const [activeTrainingId, setActiveTrainingId] = useState(urlTrainingId || "");
+  const [currentTrainingTitle, setCurrentTrainingTitle] = useState(DEFAULT_HEADER_TITLE);
 
   const [copiedLink, setCopiedLink] = useState(false);
-
   const [activeModule, setActiveModule] = useState("Module 1");
-
   const [entries, setEntries] = useState([]);
   const [isSubmitting] = useState(false);
   const [isMobileFormOpen, setIsMobileFormOpen] = useState(false);
-  
   const [showGuidelines, setShowGuidelines] = useState(false);
 
-  // Guarantee spinner plays for at least 2 seconds on initial page load/refresh
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [verifyingPin, setVerifyingPin] = useState(false);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setMinLoadingTimePassed(true);
@@ -72,6 +82,16 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!activeTrainerId) return;
+
+    const unsubscribe = subscribeToHeaderTitle(activeTrainerId, activeTrainingId, (title) => {
+      setCurrentTrainingTitle(title || DEFAULT_HEADER_TITLE);
+    });
+
+    return () => unsubscribe();
+  }, [activeTrainerId, activeTrainingId]);
 
   useEffect(() => {
     if (!activeTrainerId) return;
@@ -106,17 +126,39 @@ export default function App() {
   }, [activeModule, activeTrainerId, activeTrainingId, isModerator]);
 
   const handleCopyParticipantLink = () => {
-    if (!user) return;
+    if (!activeTrainerId) return;
     const trainingParam = activeTrainingId ? `&training=${activeTrainingId}` : "";
-    const shareUrl = `${window.location.origin}${window.location.pathname}?trainer=${user.uid}${trainingParam}`;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?trainer=${activeTrainerId}${trainingParam}`;
     navigator.clipboard.writeText(shareUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
+  const handleVerifyCoTrainerPin = async (e) => {
+    e.preventDefault();
+    if (!pinInput.trim() || !activeTrainerId) return;
+
+    setVerifyingPin(true);
+    setPinError("");
+
+    const isValid = await verifyCoTrainerPasscode(activeTrainerId, activeTrainingId, pinInput.trim());
+
+    if (isValid) {
+      sessionStorage.setItem("coTrainerVerified", "true");
+      setIsCoTrainerSession(true);
+      setShowPinModal(false);
+      setPinInput("");
+    } else {
+      setPinError("Invalid Co-Trainer Passcode.");
+    }
+    setVerifyingPin(false);
+  };
+
   const handleLogout = async () => {
     try {
-      await logoutTrainer();
+      sessionStorage.removeItem("coTrainerVerified");
+      setIsCoTrainerSession(false);
+      if (user) await logoutTrainer();
       if (typeof window !== "undefined") {
         window.location.href = window.location.origin + window.location.pathname;
       }
@@ -217,11 +259,22 @@ export default function App() {
               <span className="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-rose-600"></span>
             </span>
             <span className="text-[10px] sm:text-xs font-bold tracking-wider text-slate-700 uppercase">
-              {isModerator ? "Trainer Control Panel" : "Participant View"}
+              {user ? "Host Trainer Control Panel" : isCoTrainerSession ? "Co-Trainer Control Panel" : "Participant View"}
             </span>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 ml-auto shrink-0">
+            {!user && !isCoTrainerSession && urlTrainerId && (
+              <button
+                type="button"
+                onClick={() => setShowPinModal(true)}
+                className="inline-flex items-center gap-1 sm:gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold text-[10px] sm:text-xs px-2.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Join as Co-Trainer</span>
+              </button>
+            )}
+
             {isModerator && (
               <>
                 <button
@@ -233,9 +286,9 @@ export default function App() {
                   <span className="hidden sm:inline">{!copiedLink && " Participant"}</span>
                 </button>
 
-                <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-slate-100 text-slate-800 border border-slate-200/80 font-semibold text-[10px] sm:text-xs px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl whitespace-nowrap max-w-[100px] sm:max-w-none truncate">
+                <span className="inline-flex items-center gap-1 sm:gap-1.5 bg-slate-100 text-slate-800 border border-slate-200/80 font-semibold text-[10px] sm:text-xs px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl whitespace-nowrap max-w-[120px] sm:max-w-none truncate">
                   <Shield className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600 shrink-0" />
-                  <span className="truncate">{user.email.split("@")[0]}</span>
+                  <span className="truncate">{user ? user.email.split("@")[0] : "Co-Trainer"}</span>
                 </span>
 
                 <button 
@@ -243,7 +296,7 @@ export default function App() {
                   className="inline-flex items-center gap-1 sm:gap-1.5 bg-rose-50 hover:bg-rose-100/80 text-rose-700 border border-rose-200/80 font-semibold text-[10px] sm:text-xs px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl transition-all cursor-pointer whitespace-nowrap active:scale-95 shadow-xs"
                 >
                   <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-rose-600 shrink-0" />
-                  <span>Logout</span>
+                  <span>Exit</span>
                 </button>
               </>
             )}
@@ -266,6 +319,7 @@ export default function App() {
               entries={entries}
               activeModule={activeModule} 
               activeTrainingId={activeTrainingId}
+              trainingTitle={currentTrainingTitle}
               moduleTitle={MODULE_TITLES[activeModule]}
               isModerator={isModerator} 
               onModuleChange={handleModuleChange}
@@ -275,6 +329,77 @@ export default function App() {
           </main>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPinModal && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md"
+            onClick={() => setShowPinModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="bg-white border border-slate-100 rounded-3xl p-5 max-w-sm w-full shadow-2xl relative overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-800" />
+
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4 mt-1">
+                <div className="flex items-center gap-2 text-slate-800 font-bold text-sm tracking-wider uppercase">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <span>Co-Trainer Passcode</span>
+                </div>
+                <button 
+                  onClick={() => setShowPinModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-rose-50 hover:text-rose-600 border border-slate-200/60 flex items-center justify-center transition-colors cursor-pointer text-slate-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleVerifyCoTrainerPin} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Enter Passcode
+                  </label>
+                  <input
+                    type="password"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value)}
+                    placeholder="Enter passcode..."
+                    required
+                    autoFocus
+                    className="w-full px-3.5 py-2.5 text-sm font-medium bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                  {pinError && (
+                    <p className="text-xs font-bold text-rose-600 mt-1.5">{pinError}</p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPinModal(false)}
+                    className="px-4 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={verifyingPin || !pinInput.trim()}
+                    className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    {verifyingPin ? "Verifying..." : "Access Control Panel"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="lg:hidden fixed bottom-6 right-6 z-40">
         <button

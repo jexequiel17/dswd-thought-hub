@@ -131,6 +131,7 @@ export default function ModuleTable({
   activeModule = "Module 1", 
   activeTrainingId = "",
   trainerId = "",
+  trainingTitle = "Trainer Dashboard",
   isModerator = false, 
   onToggleHideEntry,
   onSaveAnswer,
@@ -237,7 +238,7 @@ export default function ModuleTable({
         xmlns:o="urn:schemas-microsoft-com:office:office"
         xmlns:x="urn:schemas-microsoft-com:office:excel"
         xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-        <Worksheet ss:Name="All_Entries">
+        <Worksheet ss:Name="Entries">
           <Table>
             ${headerXml}
             ${rowsXml}
@@ -245,11 +246,16 @@ export default function ModuleTable({
         </Worksheet>
       </Workbook>`;
 
+    const safeFilename = (trainingTitle || "Training")
+      .trim()
+      .replace(/[^a-zA-Z0-9_\-\s]/g, "")
+      .replace(/\s+/g, "_");
+
     const blob = new Blob([xmlTemplate], { type: "application/vnd.ms-excel;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `all_entries.xls`);
+    link.setAttribute("download", `${safeFilename}_entries.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
