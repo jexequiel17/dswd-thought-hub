@@ -83,7 +83,7 @@ function DeleteConfirmationModal({ isOpen, onClose, onConfirm, isDeleting }) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm font-medium text-slate-600 leading-relaxed">
-              Are you sure you want to delete <span className="underline decoration-red-500 font-bold text-slate-800">ALL</span> entries? This action cannot be undone.
+              Are you sure you want to delete <span className="underline decoration-red-500 font-bold text-slate-800">ALL</span> entries for this training? This action cannot be undone.
             </p>
 
             <div className="space-y-1.5">
@@ -184,9 +184,9 @@ export default function ModuleTable({
     setIsDeleting(true);
     try {
       if (onDeleteAllEntries) {
-        await onDeleteAllEntries(effectiveTrainerId, activeModule);
+        await onDeleteAllEntries(effectiveTrainerId, activeModule, activeTrainingId);
       } else {
-        await deleteAllEntriesForModule(effectiveTrainerId, activeModule);
+        await deleteAllEntriesForModule(effectiveTrainerId, activeModule, activeTrainingId);
       }
       setIsDeleteModalOpen(false);
     } catch (error) {

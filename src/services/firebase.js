@@ -216,8 +216,8 @@ export const updateActiveModule = async (trainerId, newModule, activeTrainingId 
   }
 };
 
-// Delete All Entries for a Specific Module and Trainer ID
-export const deleteAllEntriesForModule = async (trainerId, moduleTag) => {
+// Delete All Entries strictly for a Specific Training Session and Module
+export const deleteAllEntriesForModule = async (trainerId, moduleTag, trainingId = "") => {
   if (!trainerId || !moduleTag) return { success: false, error: "Missing trainer ID or module tag" };
   try {
     const q = query(
@@ -229,12 +229,25 @@ export const deleteAllEntriesForModule = async (trainerId, moduleTag) => {
     if (snapshot.empty) return { success: true, count: 0 };
 
     const batch = writeBatch(db);
-    snapshot.docs.forEach((docSnap) => {
-      batch.delete(docSnap.ref);
-    });
-    await batch.commit();
+    let count = 0;
 
-    return { success: true, count: snapshot.size };
+    snapshot.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const matchTraining = trainingId 
+        ? data.trainingId === trainingId 
+        : (!data.trainingId || data.trainingId === "");
+
+      if (matchTraining) {
+        batch.delete(docSnap.ref);
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      await batch.commit();
+    }
+
+    return { success: true, count };
   } catch (error) {
     console.error("Error deleting all entries for module:", error);
     return { success: false, error };
