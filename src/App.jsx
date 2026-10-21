@@ -15,9 +15,9 @@ import {
   logoutTrainer,
   subscribeToAuthChanges,
   verifyCoTrainerPasscode,
-  subscribeToHeaderTitle,
-  DEFAULT_HEADER_TITLE
+  db
 } from "./services/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import "./App.css";
 
 const MODULE_TITLES = {
@@ -53,7 +53,6 @@ export default function App() {
 
   const activeTrainerId = user ? user.uid : urlTrainerId;
   const [activeTrainingId, setActiveTrainingId] = useState(urlTrainingId || "");
-  const [currentTrainingTitle, setCurrentTrainingTitle] = useState(DEFAULT_HEADER_TITLE);
 
   const [copiedLink, setCopiedLink] = useState(false);
   const [activeModule, setActiveModule] = useState("Module 1");
@@ -67,6 +66,7 @@ export default function App() {
   const [pinError, setPinError] = useState("");
   const [verifyingPin, setVerifyingPin] = useState(false);
 
+  // Guarantee spinner plays for at least 2 seconds on initial page load/refresh
   useEffect(() => {
     const timer = setTimeout(() => {
       setMinLoadingTimePassed(true);
@@ -83,15 +83,24 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Fetch the trainer's last active training session upon initial loading/login if not specified in URL
   useEffect(() => {
-    if (!activeTrainerId) return;
+    if (!activeTrainerId || urlTrainingId) return;
 
-    const unsubscribe = subscribeToHeaderTitle(activeTrainerId, activeTrainingId, (title) => {
-      setCurrentTrainingTitle(title || DEFAULT_HEADER_TITLE);
-    });
+    const fetchLastActiveTraining = async () => {
+      try {
+        const docRef = doc(db, "trainers", activeTrainerId);
+        const snap = await getDoc(docRef);
+        if (snap.exists() && snap.data()?.activeTrainingId !== undefined) {
+          setActiveTrainingId(snap.data().activeTrainingId);
+        }
+      } catch (err) {
+        console.error("Error fetching last active training:", err);
+      }
+    };
 
-    return () => unsubscribe();
-  }, [activeTrainerId, activeTrainingId]);
+    fetchLastActiveTraining();
+  }, [activeTrainerId, urlTrainingId]);
 
   useEffect(() => {
     if (!activeTrainerId) return;
@@ -118,6 +127,10 @@ export default function App() {
 
         if (data.activeModule && data.activeModule !== activeModule) {
           setActiveModule(data.activeModule);
+        }
+
+        if (data.activeTrainingId !== undefined && data.activeTrainingId !== activeTrainingId) {
+          setActiveTrainingId(data.activeTrainingId);
         }
       }
     });
@@ -319,7 +332,6 @@ export default function App() {
               entries={entries}
               activeModule={activeModule} 
               activeTrainingId={activeTrainingId}
-              trainingTitle={currentTrainingTitle}
               moduleTitle={MODULE_TITLES[activeModule]}
               isModerator={isModerator} 
               onModuleChange={handleModuleChange}

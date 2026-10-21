@@ -57,7 +57,7 @@ export const subscribeToAuthChanges = (callback) =>
 
 const questionsCollection = collection(db, "questions");
 
-// REAL-TIME LISTENER UPDATED FOR UNIQUE TRAINING LINK ISOLATION
+// REAL-TIME LISTENER UPDATED FOR UNIQUE TRAINING LINK ISOLATION & LAST ACTIVE SESSION PERSISTENCE
 export const subscribeToEntries = (activeModule, trainerId, trainingId, callback) => {
   if (!trainerId) return () => {};
 
@@ -113,6 +113,11 @@ export const subscribeToEntries = (activeModule, trainerId, trainingId, callback
 
       if (data.activeModule && data.activeModule !== currentModule) {
         currentModule = data.activeModule;
+        updated = true;
+      }
+
+      if (data.activeTrainingId !== undefined && data.activeTrainingId !== currentTrainingId) {
+        currentTrainingId = data.activeTrainingId;
         updated = true;
       }
 
