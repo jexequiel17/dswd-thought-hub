@@ -12,7 +12,9 @@ import {
   BookmarkCheck, 
   Download,
   AlertTriangle,
-  Layers
+  Layers,
+  Filter,
+  ChevronDown
 } from "lucide-react";
 import AnswerModal from "./AnswerModal";
 import { deleteAllEntriesForModule, db, auth } from "../services/firebase";
@@ -142,7 +144,11 @@ export default function ModuleTable({
   const [activeAnswerItem, setActiveAnswerItem] = useState(null);
   const [answerText, setAnswerText] = useState("");
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
+  const [selectedFilter, setSelectedFilter] = useState("ALL"); // "ALL" | "Question" | "Appreciation" | "Concern"
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  
   const scrollContainerRef = useRef(null);
+  const filterDropdownRef = useRef(null);
 
   const getTrainerId = () => {
     if (auth?.currentUser?.uid) return auth.currentUser.uid;
@@ -162,7 +168,17 @@ export default function ModuleTable({
 
   useEffect(() => {
     setVisibleCount(BATCH_SIZE);
-  }, [activeModule, entries.length]);
+  }, [activeModule, selectedFilter, entries.length]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const toggleMyEntryPin = (itemId) => {
     if (!itemId) return;
@@ -213,7 +229,7 @@ export default function ModuleTable({
     const rowsXml = displayedEntries.map((item) => {
       const isHidden = item.hidden || item.status === "HIDDEN";
       const response = item.answer || item.response || "";
-      const rawType = item.type || "question";
+      const rawType = getNormalizedType(item);
       const formattedType = rawType.charAt(0).toUpperCase() + rawType.slice(1).toLowerCase();
       const contentText = item.question || item.content || item.message || item.text || "";
 
@@ -284,21 +300,55 @@ export default function ModuleTable({
     }
   };
 
+  const getNormalizedType = (item) => {
+    const raw = (item.type || "").trim().toLowerCase();
+    if (raw === "concern") return "concern";
+    if (raw === "appreciation") return "appreciation";
+    return "question";
+  };
+
+  const getStableKey = (item, fallbackIdx) => {
+    if (item.id) return item.id;
+    if (item.docId) return item.docId;
+    if (item.rowId) return item.rowId;
+    const content = item.question || item.content || item.message || item.text || "";
+    return `entry-${item.name || "anon"}-${getNormalizedType(item)}-${content.slice(0, 20)}-${fallbackIdx}`;
+  };
+
   const filteredByTraining = activeTrainingId
     ? entries.filter((e) => e.trainingId === activeTrainingId)
     : entries;
 
-  const rawDisplayedEntries = isModerator 
+  const rawBaseEntries = isModerator 
     ? filteredByTraining 
     : filteredByTraining.filter((e) => !e.hidden && e.status !== "HIDDEN");
 
-  const displayedEntries = [...rawDisplayedEntries].sort((a, b) => {
+  const filteredByTypeEntries = rawBaseEntries.filter((e) => {
+    if (selectedFilter === "ALL") return true;
+    return getNormalizedType(e) === selectedFilter.toLowerCase();
+  });
+
+  const displayedEntries = [...filteredByTypeEntries].sort((a, b) => {
     const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime());
     const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime());
     return timeB - timeA;
   });
 
   const visibleEntries = displayedEntries.slice(0, visibleCount);
+
+  const filterCounts = {
+    ALL: rawBaseEntries.length,
+    Question: rawBaseEntries.filter(e => getNormalizedType(e) === "question").length,
+    Appreciation: rawBaseEntries.filter(e => getNormalizedType(e) === "appreciation").length,
+    Concern: rawBaseEntries.filter(e => getNormalizedType(e) === "concern").length,
+  };
+
+  const filterTabs = [
+    { id: "ALL", label: "All", icon: Filter },
+    { id: "Question", label: "Questions", icon: HelpCircle, color: "text-blue-600" },
+    { id: "Appreciation", label: "Appreciation", icon: Heart, color: "text-red-500" },
+    { id: "Concern", label: "Concerns", icon: AlertCircle, color: "text-amber-500" },
+  ];
 
   const handleScroll = (e) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -337,191 +387,305 @@ export default function ModuleTable({
         }
       `}</style>
 
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs shrink-0 relative z-30">
-        <div className="p-3 sm:px-4 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 min-w-0">
-          <div className="flex items-center justify-between gap-2 min-w-0 w-full sm:w-auto flex-1">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg shrink-0 flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-blue-600" />
-              </span>
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate min-w-0 leading-tight">
-                Submitted Questions & Reflections
-              </h2>
-            </div>
-
-            <span className="text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg border border-slate-200 whitespace-nowrap shrink-0 ml-auto">
-              {visibleEntries.length} of {displayedEntries.length} <span className="hidden sm:inline">Entries</span>
+      {/* Top Controls Header */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs shrink-0 relative z-30 p-2.5 sm:p-3.5 space-y-2.5">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 p-1.5 rounded-lg shrink-0 flex items-center justify-center">
+              <Layers className="w-3.5 h-3.5 text-blue-600" />
             </span>
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900 tracking-tight truncate min-w-0 leading-tight">
+              Submitted Questions & Reflections
+            </h2>
           </div>
 
-          {isModerator && (
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pt-1 sm:pt-0 border-t border-slate-100 sm:border-t-0 justify-end w-full sm:w-auto">
-              <button 
-                onClick={handleExportNativeSpreadsheet} 
-                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl cursor-pointer transition-all shadow-2xs flex items-center gap-1 text-xs font-semibold text-slate-700 px-2 sm:px-2.5" 
-                title="Export Spreadsheet"
+          <div className="flex items-center gap-1.5 ml-auto shrink-0">
+            {/* Mobile Filter Menu */}
+            <div className="relative sm:hidden" ref={filterDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                className={`p-1.5 rounded-xl border flex items-center gap-1 text-xs font-bold transition-all cursor-pointer ${
+                  selectedFilter !== "ALL"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                }`}
+                title="Filter Entries"
               >
-                <Download className="w-3.5 h-3.5 text-blue-600" />
-                <span>Export</span>
+                <Filter className="w-3.5 h-3.5" />
+                <span className="text-[10px] bg-white/20 px-1 rounded-full">{filterCounts[selectedFilter]}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${isFilterDropdownOpen ? "rotate-180" : ""}`} />
               </button>
 
-              <button 
-                disabled={isDeleting} 
-                onClick={handleOpenDeleteModal} 
-                className="p-1.5 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl cursor-pointer transition-all flex items-center gap-1 text-xs font-semibold text-red-600 px-2 sm:px-2.5 disabled:opacity-50" 
-                title="Delete All Entries"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{isDeleting ? "Deleting..." : "Delete All"}</span>
-              </button>
+              <AnimatePresence>
+                {isFilterDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-1.5 z-50 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl p-1.5 space-y-1"
+                  >
+                    {filterTabs.map((tab) => {
+                      const Icon = tab.icon;
+                      const isSelected = selectedFilter === tab.id;
+                      const count = filterCounts[tab.id] || 0;
+
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFilter(tab.id);
+                            setIsFilterDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : tab.color || "text-slate-400"}`} />
+                            <span>{tab.label}</span>
+                          </div>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                            isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          )}
+
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap shrink-0">
+              {visibleEntries.length} of {displayedEntries.length} <span className="hidden sm:inline">Entries</span>
+            </span>
+
+            {isModerator && (
+              <>
+                <button 
+                  onClick={handleExportNativeSpreadsheet} 
+                  className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl cursor-pointer transition-all shadow-2xs flex items-center gap-1 text-xs font-semibold text-slate-700 px-2" 
+                  title="Export Spreadsheet"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="hidden sm:inline">Export</span>
+                </button>
+
+                <button 
+                  disabled={isDeleting} 
+                  onClick={handleOpenDeleteModal} 
+                  className="p-1.5 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl cursor-pointer transition-all flex items-center gap-1 text-xs font-semibold text-red-600 px-2 disabled:opacity-50" 
+                  title="Delete All Entries"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete All"}</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop Filter Row */}
+        <div className="hidden sm:flex items-center gap-1.5 pt-2 border-t border-slate-100 overflow-x-auto custom-scrollbar">
+          {filterTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = selectedFilter === tab.id;
+            const count = filterCounts[tab.id] || 0;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSelectedFilter(tab.id)}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 active:scale-95 ${
+                  isSelected ? "text-white" : "text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/60"
+                }`}
+              >
+                {isSelected && (
+                  <motion.div
+                    layoutId="activeFilterPillDesktop"
+                    className="absolute inset-0 bg-blue-600 rounded-xl shadow-xs shadow-blue-500/20"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-white" : tab.color || "text-slate-400"}`} />
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                    isSelected 
+                      ? "bg-white/20 text-white" 
+                      : "bg-slate-200/80 text-slate-700"
+                  }`}>
+                    {count}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <motion.div 
-        layoutScroll
+      {/* Filtered Content Container */}
+      <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="overflow-y-auto flex-1 min-h-0 space-y-3 custom-scrollbar pb-20 lg:pb-0 pr-1"
+        className="overflow-y-auto flex-1 min-h-0 custom-scrollbar pb-20 lg:pb-0 pr-1"
       >
-        <AnimatePresence initial={false} mode="popLayout">
-          {visibleEntries.length > 0 ? visibleEntries.map((item, index) => {
-            const isHidden = item.hidden || item.status === "HIDDEN";
-            const itemId = item.id || item.rowId || item.docId || `${item.name}-${index}`;
-            const currentResponse = item.answer || item.response || "";
-            const typeInfo = TYPE_CONFIG[(item.type || "question").toLowerCase()] || TYPE_CONFIG.question;
-            const TypeIcon = typeInfo.icon;
-            const isMyEntry = !isModerator && myMarkedIds.includes(itemId);
-            const displayContent = item.question || item.content || item.message || item.text || "";
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={selectedFilter}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.15, ease: "easeInOut" }}
+            className="space-y-3"
+          >
+            {visibleEntries.length > 0 ? (
+              visibleEntries.map((item, index) => {
+                const isHidden = item.hidden || item.status === "HIDDEN";
+                const itemId = getStableKey(item, index);
+                const currentResponse = item.answer || item.response || "";
+                const normalizedType = getNormalizedType(item);
+                const typeInfo = TYPE_CONFIG[normalizedType] || TYPE_CONFIG.question;
+                const TypeIcon = typeInfo.icon;
+                const isMyEntry = !isModerator && myMarkedIds.includes(itemId);
+                const displayContent = item.question || item.content || item.message || item.text || "";
 
-            return (
-              <motion.div 
-                key={itemId}
-                layout="position"
-                initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true, amount: 0.15, root: scrollContainerRef }}
-                exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                transition={{ 
-                  type: "spring", 
-                  stiffness: 260, 
-                  damping: 24,
-                  mass: 0.8
-                }}
-                className={`w-full rounded-2xl sm:rounded-3xl border-2 p-3.5 sm:p-5 transition-all shadow-sm hover:shadow-md ${
-                  isMyEntry 
-                    ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30" 
-                    : isHidden 
-                    ? "bg-slate-100/80 text-slate-400 border-slate-200" 
-                    : index % 2 === 0 
-                    ? "bg-white border-blue-200 hover:border-blue-300" 
-                    : "bg-slate-50 border-slate-200/90 hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                return (
+                  <motion.div 
+                    key={itemId}
+                    layout="position"
+                    initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true, amount: 0.15, root: scrollContainerRef }}
+                    exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                    transition={{ 
+                      type: "spring", 
+                      stiffness: 260, 
+                      damping: 24,
+                      mass: 0.8
+                    }}
+                    className={`w-full rounded-2xl sm:rounded-3xl border-2 p-3.5 sm:p-5 transition-all shadow-sm hover:shadow-md ${
                       isMyEntry 
-                        ? "bg-amber-200 text-amber-800" 
-                        : "bg-blue-100 text-blue-700 border border-blue-200"
-                    }`}>
-                      <User className="w-4 h-4" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <span className={`text-xs sm:text-sm font-extrabold truncate block ${
-                        isHidden ? "line-through opacity-60" : "text-slate-900"
-                      }`} title={item.name || "Anonymous"}>
-                        {item.name || "Anonymous"}
-                      </span>
-                      
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border mt-0.5 ${typeInfo.bg}`}>
-                        <TypeIcon className="w-3 h-3" />
-                        {typeInfo.label}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {!isModerator && (
-                      <button 
-                        type="button" 
-                        onClick={() => toggleMyEntryPin(itemId)} 
-                        title="Highlight entry"
-                        className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                        ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30" 
+                        : isHidden 
+                        ? "bg-slate-100/80 text-slate-400 border-slate-200" 
+                        : index % 2 === 0 
+                        ? "bg-white border-blue-200 hover:border-blue-300" 
+                        : "bg-slate-50 border-slate-200/90 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
                           isMyEntry 
-                            ? "bg-amber-500 text-white border-amber-500 shadow-xs" 
-                            : "bg-white text-slate-400 border-slate-200 hover:text-amber-500 hover:bg-slate-50"
-                        }`}
-                      >
-                        <BookmarkCheck className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-                    )}
+                            ? "bg-amber-200 text-amber-800" 
+                            : "bg-blue-100 text-blue-700 border border-blue-200"
+                        }`}>
+                          <User className="w-4 h-4" />
+                        </div>
 
-                    {isModerator && (
-                      <>
-                        <button 
-                          type="button" 
-                          onClick={() => handleToggleHide(item, !isHidden)} 
-                          title={isHidden ? "Restore entry" : "Hide entry"}
-                          className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                            isHidden 
-                              ? "bg-emerald-500 text-white border-emerald-500" 
-                              : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
-                          }`}
-                        >
-                          {isHidden ? <Eye className="w-4 h-4 stroke-[2.5]" /> : <EyeOff className="w-4 h-4 stroke-[2.5]" />}
-                        </button>
+                        <div className="min-w-0">
+                          <span className={`text-xs sm:text-sm font-extrabold truncate block ${
+                            isHidden ? "line-through opacity-60" : "text-slate-900"
+                          }`} title={item.name || "Anonymous"}>
+                            {item.name || "Anonymous"}
+                          </span>
+                          
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border mt-0.5 ${typeInfo.bg}`}>
+                            <TypeIcon className="w-3 h-3" />
+                            {typeInfo.label}
+                          </span>
+                        </div>
+                      </div>
 
-                        <button 
-                          type="button" 
-                          onClick={() => handleOpenAnswerModal(item)} 
-                          title={currentResponse ? "Edit Answer" : "Answer"}
-                          className="p-2 bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 rounded-xl cursor-pointer transition-all shadow-xs"
-                        >
-                          <MessageSquare className="w-4 h-4 stroke-[2.5]" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!isModerator && (
+                          <button 
+                            type="button" 
+                            onClick={() => toggleMyEntryPin(itemId)} 
+                            title="Highlight entry"
+                            className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                              isMyEntry 
+                                ? "bg-amber-500 text-white border-amber-500 shadow-xs" 
+                                : "bg-white text-slate-400 border-slate-200 hover:text-amber-500 hover:bg-slate-50"
+                            }`}
+                          >
+                            <BookmarkCheck className="w-4 h-4 stroke-[2.5]" />
+                          </button>
+                        )}
 
-                <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-                  <div>
-                    <p className={`text-xs sm:text-sm font-semibold leading-relaxed break-words ${
-                      isHidden ? "line-through opacity-60" : "text-slate-800"
-                    }`}>
-                      {displayContent}
-                    </p>
-                  </div>
+                        {isModerator && (
+                          <>
+                            <button 
+                              type="button" 
+                              onClick={() => handleToggleHide(item, !isHidden)} 
+                              title={isHidden ? "Restore entry" : "Hide entry"}
+                              className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                isHidden 
+                                  ? "bg-emerald-500 text-white border-emerald-500" 
+                                  : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
+                              }`}
+                            >
+                              {isHidden ? <Eye className="w-4 h-4 stroke-[2.5]" /> : <EyeOff className="w-4 h-4 stroke-[2.5]" />}
+                            </button>
 
-                  {currentResponse ? (
-                    <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2.5 mt-2">
-                      <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 mb-0.5">
-                        Response:
-                      </p>
-                      <p className={`text-xs sm:text-sm font-medium text-slate-700 leading-snug break-words ${
-                        isHidden ? "line-through opacity-60" : ""
-                      }`}>
-                        {currentResponse}
-                      </p>
+                            <button 
+                              type="button" 
+                              onClick={() => handleOpenAnswerModal(item)} 
+                              title={currentResponse ? "Edit Answer" : "Answer"}
+                              className="p-2 bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 rounded-xl cursor-pointer transition-all shadow-xs"
+                            >
+                              <MessageSquare className="w-4 h-4 stroke-[2.5]" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <span className="text-[11px] italic text-slate-400 block pt-1">
-                      Awaiting response...
-                    </span>
-                  )}
-                </div>
-              </motion.div>
-            );
-          }) : (
-            <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-8 text-center text-slate-400 font-medium text-xs sm:text-sm bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
-              No entries submitted yet.
-            </motion.div>
-          )}
+
+                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                      <div>
+                        <p className={`text-xs sm:text-sm font-semibold leading-relaxed break-words ${
+                          isHidden ? "line-through opacity-60" : "text-slate-800"
+                        }`}>
+                          {displayContent}
+                        </p>
+                      </div>
+
+                      {currentResponse ? (
+                        <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2.5 mt-2">
+                          <p className="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 mb-0.5">
+                            Response:
+                          </p>
+                          <p className={`text-xs sm:text-sm font-medium text-slate-700 leading-snug break-words ${
+                            isHidden ? "line-through opacity-60" : ""
+                          }`}>
+                            {currentResponse}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] italic text-slate-400 block pt-1">
+                          Awaiting response...
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })
+            ) : (
+              <div className="p-8 text-center text-slate-400 font-medium text-xs sm:text-sm bg-white rounded-3xl border-2 border-slate-200 shadow-xs">
+                No {selectedFilter !== "ALL" ? selectedFilter.toLowerCase() + " " : ""}entries submitted yet.
+              </div>
+            )}
+          </motion.div>
         </AnimatePresence>
-      </motion.div>
+      </div>
 
       <AnswerModal 
         isOpen={Boolean(activeAnswerItem)} 

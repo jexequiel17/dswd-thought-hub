@@ -38,6 +38,7 @@ export const auth = getAuth(app);
 
 // DEFAULT FALLBACK HEADER TITLE
 export const DEFAULT_HEADER_TITLE = "Trainer Dashboard";
+export const DEFAULT_CO_TRAINER_PASSCODE = "dswd143";
 
 // AUTHENTICATION HELPERS
 export const signUpTrainer = (email, password) => 
@@ -57,7 +58,7 @@ export const subscribeToAuthChanges = (callback) =>
 
 const questionsCollection = collection(db, "questions");
 
-// REAL-TIME LISTENER UPDATED FOR UNIQUE TRAINING LINK ISOLATION & LAST ACTIVE SESSION PERSISTENCE
+// REAL-TIME LISTENER UPDATED FOR UNIQUE TRAINING LINK ISOLATION
 export const subscribeToEntries = (activeModule, trainerId, trainingId, callback) => {
   if (!trainerId) return () => {};
 
@@ -113,11 +114,6 @@ export const subscribeToEntries = (activeModule, trainerId, trainingId, callback
 
       if (data.activeModule && data.activeModule !== currentModule) {
         currentModule = data.activeModule;
-        updated = true;
-      }
-
-      if (data.activeTrainingId !== undefined && data.activeTrainingId !== currentTrainingId) {
-        currentTrainingId = data.activeTrainingId;
         updated = true;
       }
 
@@ -334,28 +330,31 @@ export const subscribeToAllEntries = (trainerId, callback) => {
   }, (err) => console.error("Firestore error fetching all entries:", err));
 };
 
-// VERIFY CO-TRAINER PASSCODE
+// VERIFY CO-TRAINER PASSCODE WITH "dswd143" DEFAULT FALLBACK
 export const verifyCoTrainerPasscode = async (trainerId, trainingId, inputPasscode) => {
   if (!trainerId) return false;
   try {
+    const cleanInput = inputPasscode.toString().trim();
+
     if (trainingId) {
       const trainingRef = doc(db, "trainers", trainerId, "trainings", trainingId);
       const snap = await getDoc(trainingRef);
       if (snap.exists() && snap.data()?.coTrainerPin) {
-        return snap.data().coTrainerPin.toString() === inputPasscode.toString();
+        return snap.data().coTrainerPin.toString().trim() === cleanInput;
       }
     }
     
     const trainerRef = doc(db, "trainers", trainerId);
     const trainerSnap = await getDoc(trainerRef);
     if (trainerSnap.exists() && trainerSnap.data()?.coTrainerPin) {
-      return trainerSnap.data().coTrainerPin.toString() === inputPasscode.toString();
+      return trainerSnap.data().coTrainerPin.toString().trim() === cleanInput;
     }
 
-    return false;
+    // Default fallback passcode check
+    return cleanInput === DEFAULT_CO_TRAINER_PASSCODE;
   } catch (error) {
     console.error("Error verifying co-trainer passcode:", error);
-    return false;
+    return inputPasscode.toString().trim() === DEFAULT_CO_TRAINER_PASSCODE;
   }
 };
 
@@ -363,12 +362,13 @@ export const verifyCoTrainerPasscode = async (trainerId, trainingId, inputPassco
 export const setCoTrainerPasscode = async (trainerId, trainingId, newPin) => {
   if (!trainerId) return { success: false };
   try {
+    const pinToSet = newPin || DEFAULT_CO_TRAINER_PASSCODE;
     if (trainingId) {
       const trainingRef = doc(db, "trainers", trainerId, "trainings", trainingId);
-      await setDoc(trainingRef, { coTrainerPin: newPin }, { merge: true });
+      await setDoc(trainingRef, { coTrainerPin: pinToSet }, { merge: true });
     } else {
       const trainerRef = doc(db, "trainers", trainerId);
-      await setDoc(trainerRef, { coTrainerPin: newPin }, { merge: true });
+      await setDoc(trainerRef, { coTrainerPin: pinToSet }, { merge: true });
     }
     return { success: true };
   } catch (error) {

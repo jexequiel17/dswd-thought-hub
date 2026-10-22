@@ -159,11 +159,18 @@ export default function Header({
   const [trainingToDelete, setTrainingToDelete] = useState(null);
   const [isDeletingTraining, setIsDeletingTraining] = useState(false);
 
-  // CO-TRAINER PASSCODE SETTINGS STATE
+  // CO-TRAINER PASSCODE SETTINGS STATE (Set to "dswd143" by default)
   const [showPasscodeModal, setShowPasscodeModal] = useState(false);
-  const [newPasscode, setNewPasscode] = useState("");
+  const [newPasscode, setNewPasscode] = useState("dswd143");
   const [isSavingPasscode, setIsSavingPasscode] = useState(false);
   const [passcodeSuccess, setPasscodeSuccess] = useState(false);
+
+  // Reset passcode state to "dswd143" every time passcode modal opens
+  useEffect(() => {
+    if (showPasscodeModal) {
+      setNewPasscode("dswd143");
+    }
+  }, [showPasscodeModal]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -313,16 +320,17 @@ export default function Header({
 
   const handleSaveCoTrainerPasscode = async (e) => {
     e.preventDefault();
-    if (!newPasscode.trim() || !effectiveTrainerId) return;
+    if (!effectiveTrainerId) return;
+
+    const passcodeToSave = newPasscode.trim() || "dswd143";
 
     setIsSavingPasscode(true);
     try {
-      await setCoTrainerPasscode(effectiveTrainerId, activeTrainingId, newPasscode.trim());
+      await setCoTrainerPasscode(effectiveTrainerId, activeTrainingId, passcodeToSave);
       setPasscodeSuccess(true);
       setTimeout(() => {
         setPasscodeSuccess(false);
         setShowPasscodeModal(false);
-        setNewPasscode("");
       }, 1500);
     } catch (err) {
       console.error("Failed to set passcode:", err);
@@ -588,13 +596,13 @@ export default function Header({
                     type="text"
                     value={newPasscode}
                     onChange={(e) => setNewPasscode(e.target.value)}
-                    placeholder="e.g. 1234 or session2026"
+                    placeholder="e.g. dswd143"
                     required
                     autoFocus
                     className="w-full px-3.5 py-2 text-sm font-medium bg-slate-50 text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
                   />
                   <p className="text-[11px] font-medium text-slate-500 mt-1">
-                    Share this passcode with co-trainers so they can access moderation features without logging in.
+                    Share this passcode with co-trainers so they can access moderation features without logging in. Default: <strong className="text-indigo-600">dswd143</strong>
                   </p>
                 </div>
 

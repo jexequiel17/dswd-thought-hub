@@ -177,7 +177,9 @@ export default function App() {
       }
     } catch (error) {
       console.error("Logout error:", error);
-      window.location.href = window.location.origin + window.location.pathname;
+      if (typeof window !== "undefined") {
+        window.location.href = window.location.origin + window.location.pathname;
+      }
     }
   };
 
@@ -332,6 +334,7 @@ export default function App() {
               entries={entries}
               activeModule={activeModule} 
               activeTrainingId={activeTrainingId}
+              trainerId={activeTrainerId}
               moduleTitle={MODULE_TITLES[activeModule]}
               isModerator={isModerator} 
               onModuleChange={handleModuleChange}
